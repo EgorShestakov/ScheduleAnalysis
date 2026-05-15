@@ -3,9 +3,13 @@
 from typing import List, Tuple
 from data_models import Room, Teacher, TimeSlot, WorkDay, Event
 
-# def load_resources() -> Tuple[List[Room], List[Teacher]]:
-#     """Загружает аудитории и преподавателей из resources.csv."""
-#     pass
+def load_rooms() -> List[Room]:
+    """Загружает аудитории из rooms.csv."""
+    pass
+
+def load_teachers() -> List[Teacher]:
+    """Загружает преподавателей из teachers.csv."""
+    pass
 
 def load_time_grid() -> List[TimeSlot]:
     """Загружает сетку временных слотов из time_grid.csv."""
