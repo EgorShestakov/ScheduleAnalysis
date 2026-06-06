@@ -3,3 +3,5 @@ Lib
 Scripts
 .idea
 pyvenv.cfg
+src/__pycache__/
+tests/__pycache__/
