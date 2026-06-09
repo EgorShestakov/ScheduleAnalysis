@@ -19,8 +19,8 @@ class TestGetAllSlots:
     def test_get_all_slots_success(self):
         """Проверяет получение всех комбинаций room_id, date, slot_id."""
         rooms = [
-            Room(id=1, number="402", capacity=30, equipment=["доска"]),
-            Room(id=2, number="403", capacity=20, equipment=["компьютеры"])
+            Room(id=1, number=101, capacity=30, equipment=["доска"]),
+            Room(id=2, number=201, capacity=20, equipment=["компьютеры"])
         ]
         slot1 = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
         slot2 = TimeSlot(id=2, number=2, start_time="10:40", end_time="12:10")
@@ -58,7 +58,7 @@ class TestGetAllSlots:
 
     def test_get_all_slots_empty_workdays(self):
         """Проверяет поведение при пустом списке рабочих дней."""
-        rooms = [Room(id=1, number="402", capacity=30, equipment=["доска"])]
+        rooms = [Room(id=1, number=101, capacity=30, equipment=["доска"])]
         work_days = []
 
         slots = get_all_slots(rooms, work_days)
@@ -66,7 +66,7 @@ class TestGetAllSlots:
 
     def test_get_all_slots_skip_holidays(self):
         """Проверяет, что выходные дни пропускаются."""
-        rooms = [Room(id=1, number="402", capacity=30, equipment=["доска"])]
+        rooms = [Room(id=1, number=101, capacity=30, equipment=["доска"])]
         slot = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
         work_days = [
             WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная",
@@ -83,8 +83,8 @@ class TestGetAllSlots:
     def test_get_all_slots_order(self):
         """Проверяет, что порядок слотов соответствует перебору: комнаты → дни → слоты."""
         rooms = [
-            Room(id=1, number="402", capacity=30, equipment=[]),
-            Room(id=2, number="403", capacity=20, equipment=[])
+            Room(id=1, number=101, capacity=30, equipment=[]),
+            Room(id=2, number=201, capacity=20, equipment=[])
         ]
         slot1 = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
         slot2 = TimeSlot(id=2, number=2, start_time="10:40", end_time="12:10")
@@ -107,13 +107,13 @@ class TestBuildBipartiteGraph:
     @pytest.fixture
     def sample_data(self):
         """Фикстура с тестовыми данными."""
-        groups = [  # теперь список, а не словарь
+        groups = [
             Group(id=1, course=1, department="ИАИТ", number="110", size=23),
             Group(id=2, course=2, department="ИАИТ", number="120", size=15)
         ]
         rooms = [
-            Room(id=1, number="402", capacity=17, equipment=["доска", "компьютеры"]),
-            Room(id=2, number="403", capacity=16, equipment=["доска", "принтер"])
+            Room(id=1, number=402, capacity=17, equipment=["доска", "компьютеры"]),
+            Room(id=2, number=403, capacity=16, equipment=["доска", "принтер"])
         ]
         slot1 = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
         slot2 = TimeSlot(id=2, number=2, start_time="10:40", end_time="12:10")
@@ -265,7 +265,8 @@ class TestBuildBipartiteGraph:
         )
 
         # Проверяем, что в графе нет рёбер, нарушающих условия
-        group_by_id = sample_data["groups"]
+        # Преобразуем groups в словарь для быстрого доступа
+        group_by_id = {group.id: group for group in sample_data["groups"]}
         room_by_id = {room.id: room for room in sample_data["rooms"]}
         event_by_id = {event.id: event for event in sample_data["events"]}
 
@@ -313,8 +314,8 @@ class TestExampleFromChapter:
         ]
 
         rooms = [
-            Room(id=1, number="c1", capacity=40, equipment=["доска", "компьютеры"]),
-            Room(id=2, number="c2", capacity=30, equipment=["доска", "принтер"])
+            Room(id=1, number=101, capacity=40, equipment=["доска", "компьютеры"]),
+            Room(id=2, number=201, capacity=30, equipment=["доска", "принтер"])
         ]
 
         # Временные интервалы T = {1, 2}
@@ -631,8 +632,8 @@ class TestExampleVisualization:
         ]
 
         rooms = [
-            Room(id=1, number="c1", capacity=40, equipment=["доска", "компьютеры"]),
-            Room(id=2, number="c2", capacity=30, equipment=["доска", "принтер"])
+            Room(id=1, number=101, capacity=40, equipment=["доска", "компьютеры"]),
+            Room(id=2, number=201, capacity=30, equipment=["доска", "принтер"])
         ]
 
         slot1 = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
