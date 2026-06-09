@@ -21,30 +21,30 @@ class TestGroup:
 
     def test_group_creation(self):
         """Проверяет, что объект Group создаётся с корректными атрибутами."""
-        group = Group(id=1, course=1, department="ИАИТ", number="110", size=31)
+        group = Group(id=1, course=1, department="ИАИТ", number=110, size=31)
         assert group.id == 1
         assert group.course == 1
         assert group.department == "ИАИТ"
-        assert group.number == "110"
+        assert group.number == 110
         assert group.size == 31
 
     def test_group_attributes_types(self):
         """Проверяет типы атрибутов Group."""
-        group = Group(id=1, course=1, department="ИАИТ", number="110", size=31)
+        group = Group(id=1, course=1, department="ИАИТ", number=110, size=31)
         assert isinstance(group.id, int)
         assert isinstance(group.course, int)
         assert isinstance(group.department, str)
-        assert isinstance(group.number, str)
+        assert isinstance(group.number, int)
         assert isinstance(group.size, int)
 
     def test_group_repr(self):
         """Проверяет работу метода __repr__."""
-        group = Group(id=1, course=1, department="ИАИТ", number="110", size=31)
+        group = Group(id=1, course=1, department="ИАИТ", number=110, size=31)
         repr_str = repr(group)
         assert "Group" in repr_str
         assert "id=1" in repr_str
         assert "department='ИАИТ'" in repr_str
-        assert "number='110'" in repr_str
+        assert "number=110" in repr_str
         assert "size=31" in repr_str
 
 
@@ -54,26 +54,26 @@ class TestRoom:
     def test_room_creation(self):
         """Проверяет, что объект Room создаётся с корректными атрибутами."""
         equipment = ["доска", "компьютеры"]
-        room = Room(id=1, number="402", capacity=30, equipment=equipment)
+        room = Room(id=1, number=402, capacity=30, equipment=equipment)
         assert room.id == 1
-        assert room.number == "402"
+        assert room.number == 402
         assert room.capacity == 30
         assert room.equipment == equipment
         assert len(room.equipment) == 2
 
     def test_room_empty_equipment(self):
         """Проверяет создание аудитории без оборудования."""
-        room = Room(id=1, number="402", capacity=30, equipment=[])
+        room = Room(id=1, number=402, capacity=30, equipment=[])
         assert room.equipment == []
 
     def test_room_repr(self):
         """Проверяет работу метода __repr__."""
         equipment = ["доска", "компьютеры"]
-        room = Room(id=1, number="402", capacity=30, equipment=equipment)
+        room = Room(id=1, number=402, capacity=30, equipment=equipment)
         repr_str = repr(room)
         assert "Room" in repr_str
         assert "id=1" in repr_str
-        assert "number='402'" in repr_str
+        assert "number=402" in repr_str
         assert "capacity=30" in repr_str
         assert "доска" in repr_str
 
