@@ -18,10 +18,12 @@ class TestCriterionOne:
         """Проверяет, что при |E| <= |C|*|T| возвращает True."""
         # Создаём данные: 5 событий, 3 аудитории, 2 временных слота → 3*2=6 >= 5
         events = [Event(id=i, name=f"E{i}", group_id=1, teacher_id=1, total_hours=1, required_features=[]) for i in range(5)]
-        rooms = [Room(id=i, number=f"R{i}", capacity=30, equipment=[]) for i in range(3)]
+        rooms = [
+            Room(id=1, number=101, capacity=30, equipment=[]),
+            Room(id=2, number=102, capacity=30, equipment=[]),
+            Room(id=3, number=103, capacity=30, equipment=[])
+        ]
         slot = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
-        work_days = [WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная", available_slots=[slot])]
-        # work_days имеет 1 слот, умножаем на 2 рабочих дня для 2 слотов
         work_days = [
             WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная", available_slots=[slot]),
             WorkDay(date=date(2026, 3, 28), is_holiday=False, day_type="четная", available_slots=[slot])
@@ -33,7 +35,11 @@ class TestCriterionOne:
         """Проверяет, что при |E| > |C|*|T| возвращает False и выводит рекомендации."""
         # Создаём данные: 10 событий, 3 аудитории, 2 временных слота → 3*2=6 < 10
         events = [Event(id=i, name=f"E{i}", group_id=1, teacher_id=1, total_hours=1, required_features=[]) for i in range(10)]
-        rooms = [Room(id=i, number=f"R{i}", capacity=30, equipment=[]) for i in range(3)]
+        rooms = [
+            Room(id=1, number=101, capacity=30, equipment=[]),
+            Room(id=2, number=102, capacity=30, equipment=[]),
+            Room(id=3, number=103, capacity=30, equipment=[])
+        ]
         slot = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
         work_days = [
             WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная", available_slots=[slot]),
@@ -46,7 +52,11 @@ class TestCriterionOne:
         """Проверяет граничный случай |E| == |C|*|T|."""
         # Создаём данные: 6 событий, 3 аудитории, 2 временных слота → 3*2=6 == 6
         events = [Event(id=i, name=f"E{i}", group_id=1, teacher_id=1, total_hours=1, required_features=[]) for i in range(6)]
-        rooms = [Room(id=i, number=f"R{i}", capacity=30, equipment=[]) for i in range(3)]
+        rooms = [
+            Room(id=1, number=101, capacity=30, equipment=[]),
+            Room(id=2, number=102, capacity=30, equipment=[]),
+            Room(id=3, number=103, capacity=30, equipment=[])
+        ]
         slot = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
         work_days = [
             WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная", available_slots=[slot]),
@@ -58,7 +68,11 @@ class TestCriterionOne:
     def test_criterion_one_recommendations_format(self):
         """Проверяет, что рекомендации содержат конкретные числа и варианты действий."""
         events = [Event(id=i, name=f"E{i}", group_id=1, teacher_id=1, total_hours=1, required_features=[]) for i in range(15)]
-        rooms = [Room(id=i, number=f"R{i}", capacity=30, equipment=[]) for i in range(3)]
+        rooms = [
+            Room(id=1, number=101, capacity=30, equipment=[]),
+            Room(id=2, number=102, capacity=30, equipment=[]),
+            Room(id=3, number=103, capacity=30, equipment=[])
+        ]
         slot = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
         work_days = [WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная", available_slots=[slot])]
         # 15 > 3*1 = 3, нарушение
@@ -69,7 +83,7 @@ class TestCriterionOne:
     def test_criterion_one_empty_events(self):
         """Проверяет поведение при пустом списке событий."""
         events = []
-        rooms = [Room(id=1, number="402", capacity=30, equipment=[])]
+        rooms = [Room(id=1, number=101, capacity=30, equipment=[])]
         slot = TimeSlot(id=1, number=1, start_time="09:00", end_time="10:30")
         work_days = [WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная", available_slots=[slot])]
         result = criterion_one(events, rooms, work_days)
@@ -87,7 +101,7 @@ class TestCriterionOne:
     def test_criterion_one_empty_workdays(self):
         """Проверяет поведение при пустом списке рабочих дней."""
         events = [Event(id=1, name="E1", group_id=1, teacher_id=1, total_hours=1, required_features=[])]
-        rooms = [Room(id=1, number="402", capacity=30, equipment=[])]
+        rooms = [Room(id=1, number=101, capacity=30, equipment=[])]
         work_days = []
         result = criterion_one(events, rooms, work_days)
         assert result is False

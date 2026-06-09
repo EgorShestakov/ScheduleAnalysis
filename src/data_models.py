@@ -3,6 +3,7 @@
 from datetime import date
 from typing import List
 
+
 class Group:
     """Учебная группа."""
 
@@ -27,7 +28,7 @@ class Group:
 class Room:
     """Аудитория."""
 
-    def __init__(self, id: int, number: str, capacity: int, equipment: List[str]):
+    def __init__(self, id: int, number: int, capacity: int, equipment: List[str]):
         """
         :param id: уникальный идентификатор
         :param number: номер аудитории
