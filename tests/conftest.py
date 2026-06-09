@@ -130,6 +130,20 @@ def sample_events_two_with_empty_edges():
     ]
 
 
+@pytest.fixture
+def sample_event_empty_features():
+    """Возвращает тестовое событие без требований к оборудованию."""
+    return Event(id=2, name="Лекция", group_id=1, teacher_id=1,
+                 total_hours=2, required_features=[])
+
+
+@pytest.fixture
+def sample_event_zero_hours():
+    """Возвращает тестовое событие с нулевым количеством часов."""
+    return Event(id=3, name="Факультатив", group_id=1, teacher_id=1,
+                 total_hours=0, required_features=[])
+
+
 # ==================== Фикстуры аудиторий ====================
 
 @pytest.fixture
@@ -260,25 +274,38 @@ def sample_workdays_list(sample_workday):
 # ==================== Фикстуры преподавателей ====================
 
 @pytest.fixture
-def sample_teacher():
+def teacher():
     """Возвращает тестового преподавателя."""
     return Teacher(id=1, surname="Иванов", name="Иван", patronymic="Иванович",
                    specialization=["Матанализ"], department="ПМиИ")
 
 
 @pytest.fixture
-def sample_teacher_2():
+def teacher_2():
     """Возвращает второго тестового преподавателя."""
     return Teacher(id=2, surname="Петров", name="Петр", patronymic="Петрович",
                    specialization=["Численные методы"], department="ПМиИ")
 
 
 @pytest.fixture
-def sample_teacher_3():
+def teacher_3():
     """Возвращает третьего тестового преподавателя."""
     return Teacher(id=3, surname="Сидоров", name="Сидор", patronymic="Сидорович",
                    specialization=["Информационные технологии"], department="ИВТ")
 
+
+@pytest.fixture
+def teacher_no_patron():
+    """Возвращает тестового преподавателя без отчества."""
+    return Teacher(id=2, surname="Петров", name="Петр", patronymic="",
+                   specialization=[], department="ПМиИ")
+
+
+@pytest.fixture
+def teacher_no_name():
+    """Возвращает тестового преподавателя без имени и отчества."""
+    return Teacher(id=3, surname="Сидоров", name="", patronymic="",
+                   specialization=[], department="ПМиИ")
 
 # ==================== Фикстуры графа ====================
 
