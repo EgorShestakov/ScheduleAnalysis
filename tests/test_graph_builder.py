@@ -108,8 +108,8 @@ class TestBuildBipartiteGraph:
     def sample_data(self):
         """Фикстура с тестовыми данными."""
         groups = [
-            Group(id=1, course=1, department="ИАИТ", number="110", size=23),
-            Group(id=2, course=2, department="ИАИТ", number="120", size=15)
+            Group(id=1, course=1, department="ИАИТ", number=110, size=23),
+            Group(id=2, course=2, department="ИАИТ", number=120, size=15)
         ]
         rooms = [
             Room(id=1, number=402, capacity=17, equipment=["доска", "компьютеры"]),
@@ -309,8 +309,8 @@ class TestExampleFromChapter:
     def example_data(self):
         """Создаёт тестовые данные из примера."""
         groups = [
-            Group(id=1, course=1, department="ИАИТ", number="110", size=31),
-            Group(id=2, course=1, department="ИАИТ", number="120", size=15)
+            Group(id=1, course=1, department="ИАИТ", number=110, size=31),
+            Group(id=2, course=1, department="ИАИТ", number=120, size=15)
         ]
 
         rooms = [
@@ -627,8 +627,8 @@ class TestExampleVisualization:
     def example_data(self):
         """Создаёт тестовые данные из примера."""
         groups = [
-            Group(id=1, course=1, department="ИАИТ", number="110", size=31),
-            Group(id=2, course=1, department="ИАИТ", number="120", size=15)
+            Group(id=1, course=1, department="ИАИТ", number=110, size=31),
+            Group(id=2, course=1, department="ИАИТ", number=120, size=15)
         ]
 
         rooms = [

@@ -7,7 +7,7 @@ from typing import List
 class Group:
     """Учебная группа."""
 
-    def __init__(self, id: int, course: int, department: str, number: str, size: int):
+    def __init__(self, id: int, course: int, department: str, number: int, size: int):
         """
         :param id: уникальный идентификатор
         :param course: курс обучения
