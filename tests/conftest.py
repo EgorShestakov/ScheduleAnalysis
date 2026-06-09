@@ -18,27 +18,29 @@ from src.data_models import Group, Room, Teacher, Event, TimeSlot, WorkDay
 @pytest.fixture
 def sample_group():
     """Возвращает тестовую группу с id=1, курсом 1, факультетом ИАИТ, номером 110, численностью 31."""
-    return Group(id=1, course=1, department="ИАИТ", number="110", size=31)
+    return Group(id=1, course=1, department="ИАИТ", number=110, size=31)
 
 
 @pytest.fixture
 def sample_room():
-    """Возвращает тестовую аудиторию с id=1, номером 402, вместимостью 30, типом 'лекционная'."""
-    return Room(id=1, number="402", capacity=30, type="лекционная")
+    """Возвращает тестовую аудиторию с id=1, номером 402, вместимостью 30, оборудованием []."""
+    return Room(id=1, number=402, capacity=30, equipment=[])
 
 
 @pytest.fixture
 def sample_teacher():
-    """Возвращает тестового преподавателя с id=1, именем Иванов И.И., кафедрой ПМиИ."""
-    return Teacher(id=1, name="Иванов И.И.", department="ПМиИ")
+    """Возвращает тестового преподавателя с id=1, фамилией Иванов, именем Иван, отчеством Иванович,
+    специализацией [], кафедрой ПМиИ."""
+    return Teacher(id=1, surname="Иванов", name="Иван", patronymic="Иванович",
+                   specialization=[], department="ПМиИ")
 
 
 @pytest.fixture
 def sample_event(sample_group):
     """Возвращает тестовое событие с id=1, названием 'Матанализ', group_id=1, teacher_id=1,
-    total_hours=4, required_features='доска,проектор'."""
+    total_hours=4, required_features=['доска', 'проектор']."""
     return Event(id=1, name="Матанализ", group_id=sample_group.id,
-                 teacher_id=1, total_hours=4, required_features="доска,проектор")
+                 teacher_id=1, total_hours=4, required_features=["доска", "проектор"])
 
 
 @pytest.fixture
