@@ -66,7 +66,7 @@ def events_15():
 
 
 @pytest.fixture
-def events_two_connected():
+def events_two_all_connected():
     """Возвращает два события, оба должны быть в графе."""
     return [
         Event(id=1, name="E1", group_id=1, teacher_id=1, total_hours=1, required_features=[]),

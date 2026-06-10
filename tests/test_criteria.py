@@ -14,95 +14,95 @@ from src.criteria import criterion_one, criterion_two
 class TestCriterionOne:
     """Тесты для функции criterion_one()."""
 
-    def test_criterion_one_valid(self, sample_events_5, sample_rooms_3, sample_workdays_2):
+    def test_criterion_one_valid(self, events_5, rooms_3, workdays_2):
         """Проверяет, что при |E| <= |C|*|T| возвращает True."""
-        result = criterion_one(sample_events_5, sample_rooms_3, sample_workdays_2)
+        result = criterion_one(events_5, rooms_3, workdays_2)
         assert result is True
 
-    def test_criterion_one_invalid(self, sample_events_10, sample_rooms_3, sample_workdays_2):
+    def test_criterion_one_invalid(self, events_10, rooms_3, workdays_2):
         """Проверяет, что при |E| > |C|*|T| возвращает False и выводит рекомендации."""
-        result = criterion_one(sample_events_10, sample_rooms_3, sample_workdays_2)
+        result = criterion_one(events_10, rooms_3, workdays_2)
         assert result is False
 
-    def test_criterion_one_edge_case_equal(self, sample_events_6, sample_rooms_3, sample_workdays_2):
+    def test_criterion_one_edge_case_equal(self, events_6, rooms_3, workdays_2):
         """Проверяет граничный случай |E| == |C|*|T|."""
-        result = criterion_one(sample_events_6, sample_rooms_3, sample_workdays_2)
+        result = criterion_one(events_6, rooms_3, workdays_2)
         assert result is True
 
-    def test_criterion_one_recommendations_format(self, sample_events_15, sample_rooms_3, sample_workday_single):
+    def test_criterion_one_recommendations_format(self, events_15, rooms_3, workday_single):
         """Проверяет, что рекомендации содержат конкретные числа и варианты действий."""
-        work_days = [sample_workday_single]
-        result = criterion_one(sample_events_15, sample_rooms_3, work_days)
+        work_days = [workday_single]
+        result = criterion_one(events_15, rooms_3, work_days)
         assert result is False
 
-    def test_criterion_one_empty_events(self, sample_rooms_3, sample_workday_single):
+    def test_criterion_one_empty_events(self, rooms_3, workday_single):
         """Проверяет поведение при пустом списке событий."""
-        result = criterion_one([], sample_rooms_3, [sample_workday_single])
+        result = criterion_one([], rooms_3, [workday_single])
         assert result is True
 
-    def test_criterion_one_empty_rooms(self, sample_event_single, sample_workday_single):
+    def test_criterion_one_empty_rooms(self, event_single, workday_single):
         """Проверяет поведение при пустом списке аудиторий."""
-        result = criterion_one([sample_event_single], [], [sample_workday_single])
+        result = criterion_one([event_single], [], [workday_single])
         assert result is False
 
-    def test_criterion_one_empty_workdays(self, sample_event_single, sample_room_single):
+    def test_criterion_one_empty_workdays(self, event_single, room_single):
         """Проверяет поведение при пустом списке рабочих дней."""
-        result = criterion_one([sample_event_single], [sample_room_single], [])
+        result = criterion_one([event_single], [room_single], [])
         assert result is False
 
 
 class TestCriterionTwo:
     """Тесты для функции criterion_two()."""
 
-    def test_criterion_two_all_connected(self, sample_events_two_connected, sample_graph_connected):
+    def test_criterion_two_all_connected(self, events_two_all_connected, graph_connected):
         """Проверяет, что при отсутствии изолированных событий возвращает (True, [])."""
-        success, isolated = criterion_two(sample_graph_connected, sample_events_two_connected)
+        success, isolated = criterion_two(graph_connected, events_two_all_connected)
         assert success is True
         assert isolated == []
 
-    def test_criterion_two_isolated_events(self, sample_events_three_with_isolated, sample_graph_with_isolated):
+    def test_criterion_two_isolated_events(self, events_three_with_isolated, graph_with_isolated):
         """Проверяет, что при наличии изолированных событий возвращает их список."""
-        success, isolated = criterion_two(sample_graph_with_isolated, sample_events_three_with_isolated)
+        success, isolated = criterion_two(graph_with_isolated, events_three_with_isolated)
         assert success is False
         assert 2 in isolated
         assert len(isolated) == 1
 
-    def test_criterion_two_multiple_isolated_events(self, sample_events_three_all_connected, sample_graph_single_edge):
+    def test_criterion_two_multiple_isolated_events(self, events_three_all_connected, graph_single_edge):
         """Проверяет, что при нескольких изолированных событиях возвращает все их id."""
-        success, isolated = criterion_two(sample_graph_single_edge, sample_events_three_all_connected)
+        success, isolated = criterion_two(graph_single_edge, events_three_all_connected)
         assert success is False
         assert len(isolated) == 2
         assert 2 in isolated
         assert 3 in isolated
 
-    def test_criterion_two_conflict_table(self, sample_events_two_with_features, sample_graph_empty):
+    def test_criterion_two_conflict_table(self, events_two_with_features, graph_empty):
         """Проверяет, что таблица причин конфликтов формируется корректно."""
-        success, isolated = criterion_two(sample_graph_empty, sample_events_two_with_features)
+        success, isolated = criterion_two(graph_empty, events_two_with_features)
         assert success is False
         assert len(isolated) == 2
 
-    def test_criterion_two_empty_graph(self, sample_events_two_all_connected, sample_graph_empty):
+    def test_criterion_two_empty_graph(self, events_two_all_connected, graph_empty):
         """Проверяет поведение при пустом графе (все события изолированы)."""
-        success, isolated = criterion_two(sample_graph_empty, sample_events_two_all_connected)
+        success, isolated = criterion_two(graph_empty, events_two_all_connected)
         assert success is False
         assert len(isolated) == 2
 
-    def test_criterion_two_empty_events(self, sample_graph_single_edge):
+    def test_criterion_two_empty_events(self, graph_single_edge):
         """Проверяет поведение при пустом списке событий."""
-        success, isolated = criterion_two(sample_graph_single_edge, [])
+        success, isolated = criterion_two(graph_single_edge, [])
         assert success is True
         assert isolated == []
 
-    def test_criterion_two_event_not_in_graph(self, sample_events_two_with_missing, sample_graph_single_edge):
+    def test_criterion_two_event_not_in_graph(self, events_two_with_missing, graph_single_edge):
         """Проверяет, что событие, отсутствующее в графе, считается изолированным."""
-        success, isolated = criterion_two(sample_graph_single_edge, sample_events_two_with_missing)
+        success, isolated = criterion_two(graph_single_edge, events_two_with_missing)
         assert success is False
         assert 2 in isolated
         assert 1 not in isolated
 
-    def test_criterion_two_empty_graph_edges(self, sample_events_two_with_empty_edges, sample_graph_with_empty_edges):
+    def test_criterion_two_empty_graph_edges(self, events_two_with_empty_edges, graph_with_empty_edges):
         """Проверяет, что событие с пустым списком рёбер считается изолированным."""
-        success, isolated = criterion_two(sample_graph_with_empty_edges, sample_events_two_with_empty_edges)
+        success, isolated = criterion_two(graph_with_empty_edges, events_two_with_empty_edges)
         assert success is False
         assert 1 in isolated
         assert 2 not in isolated
