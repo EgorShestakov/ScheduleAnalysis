@@ -35,11 +35,15 @@ def criterion_one(events: List[Any], rooms: List[Any], work_days: List[Any]) -> 
     print(f"|E| = {num_events} событий")
     print(f"|C|·|T| = {num_rooms} × {num_slots} = {total_slots} слотов")
     print(f"Превышение: {diff} слотов")
-    print(f"\nРЕКОМЕНДАЦИИ:")
-    print(f"  1. Убрать как минимум {diff} событий из рассмотрения")
-    print(f"  2. Увеличить количество аудиторий на {(num_events + num_slots - 1) // abs(num_slots - num_rooms)}")
-    print(f"  3. Увеличить количество временных слотов на {(num_events + num_rooms - 1) // abs(num_rooms - num_slots)}")
-    print(f"{'='*60}\n")
+
+    if 0 in (num_events, num_rooms, num_slots):
+        print(f"\nНУЛЕЙ НЕ МОЖЕТ БЫТЬ!")
+    else:
+        print(f"\nРЕКОМЕНДАЦИИ:")
+        print(f"  1. Убрать как минимум {diff} событий из рассмотрения")
+        print(f"  2. Увеличить количество аудиторий на {num_events // num_slots - num_rooms}")
+        print(f"  3. Увеличить количество временных слотов на {num_events // num_rooms - num_slots}")
+        print(f"{'='*60}\n")
 
     return False
 
