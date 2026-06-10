@@ -22,7 +22,7 @@ class Group:
         self.size = size
 
     def __repr__(self) -> str:
-        return f"Group(id={self.id}, course={self.course}, department='{self.department}', number={self.number}, size={self.size})"
+        return f"{self.course}-{self.department}-{self.number}"
 
 
 class Room:
