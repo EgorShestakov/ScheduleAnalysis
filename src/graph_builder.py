@@ -74,59 +74,103 @@ def visualize_bipartite_graph(graph, events, rooms, work_days, output_path="grap
     """
     Визуализирует двудольный граф.
     Левые вершины (события) — красные, правые (слоты) — синие.
-    Вершины расположены на двух параллельных линиях.
+    Вершины расположены на двух параллельных линиях в строгом порядке.
     """
     G = nx.DiGraph()
 
-    # Добавляем вершины левой доли (события)
-    for event in events:
-        G.add_node(f"E{event.id}", bipartite=0, label=event.name[:10])
+    # Сортируем события по id для фиксированного порядка
+    sorted_events = sorted(events, key=lambda e: e.id)
 
-    # Добавляем вершины правой доли (слоты)
-    for room in rooms:
-        for day in work_days:
-            for slot in day.available_slots:
-                node_id = f"{room.number}_{day.date}_{slot.number}"
-                G.add_node(node_id, bipartite=1, label=node_id)
+    # Добавляем вершины левой доли (события)
+    for event in sorted_events:
+        # Метка события: только название события (без E{id})
+        label = event.name[:15]
+        G.add_node(f"E{event.id}", bipartite=0, label=label)
+
+    # Сортируем слоты: сначала по дате, потом по номеру кабинета, потом по номеру слота
+    all_slots = []
+    # Сортируем дни по дате
+    sorted_days = sorted(work_days, key=lambda d: d.date)
+    # Сортируем комнаты по номеру
+    sorted_rooms = sorted(rooms, key=lambda r: r.number)
+
+    for day in sorted_days:
+        if day.is_holiday:
+            continue
+        date_str = day.date.isoformat()
+        for room in sorted_rooms:
+            for slot in sorted(day.available_slots, key=lambda s: s.number):
+                # Метка слота: дата, кабинет, время
+                label = f"{date_str}\nкаб.{room.number}\n{slot.start_time}-{slot.end_time}"
+                node_id = f"{room.number}_{date_str}_{slot.number}"
+                all_slots.append((node_id, label))
+                G.add_node(node_id, bipartite=1, label=label)
 
     # Добавляем рёбра
     for event_id, slots in graph.items():
         for room_id, date_str, slot_id in slots:
-            # Находим комнату по id
             room = next((r for r in rooms if r.id == room_id), None)
             if room:
                 node_id = f"{room.number}_{date_str}_{slot_id}"
                 G.add_edge(f"E{event_id}", node_id)
 
-    # Получаем списки вершин каждой доли
-    left_nodes = [n for n in G.nodes if G.nodes[n]['bipartite'] == 0]
-    right_nodes = [n for n in G.nodes if G.nodes[n]['bipartite'] == 1]
+    # Получаем списки вершин в фиксированном порядке
+    left_nodes = [f"E{event.id}" for event in sorted_events]
+    right_nodes = [node_id for node_id, _ in all_slots]
 
-    # Используем специальное расположение для двудольных графов
-    # Параметры: scale - расстояние между долями, center - центр графика
-    pos = nx.bipartite_layout(G, left_nodes, align='vertical', scale=2)
+    # Увеличиваем вертикальные интервалы между вершинами
+    left_step = 2.5      # шаг между левыми вершинами
+    right_step = 2.2     # шаг между правыми вершинами
 
-    # Альтернативный вариант - горизонтальное расположение (доли слева и справа)
-    # pos = bipartite_layout(G, left_nodes, align='horizontal', scale=2)
+    # Смещение вниз (положительное значение сдвигает вниз, так как y растёт вверх)
+    top_margin = 3.0     # отступ сверху
+
+    pos = {}
+
+    for i, node in enumerate(left_nodes):
+        pos[node] = (0, -i * left_step + top_margin)
+
+    for i, node in enumerate(right_nodes):
+        pos[node] = (3.5, -i * right_step + top_margin)
 
     # Рисуем граф
-    plt.figure(figsize=(12, 8))
+    fig_height = max(len(left_nodes), len(right_nodes)) * 1.2 + 7
+    plt.figure(figsize=(16, fig_height))
 
     nx.draw_networkx_nodes(G, pos, nodelist=left_nodes,
-        node_color='red', node_size=500, alpha=0.8, label='События')
+        node_color='red', node_size=3000, alpha=0.85,
+        linewidths=1.5, edgecolors='black')
     nx.draw_networkx_nodes(G, pos, nodelist=right_nodes,
-        node_color='blue', node_size=300, alpha=0.8, label='Слоты')
-    nx.draw_networkx_edges(G, pos, edge_color='gray', alpha=0.5,
-        arrows=True, arrowsize=10, connectionstyle='arc3,rad=0.1')
+        node_color='lightblue', node_size=4000, alpha=0.85,
+        linewidths=1.5, edgecolors='black')
 
-    # Рисуем метки с небольшим смещением для читаемости
-    nx.draw_networkx_labels(G, pos, {n: G.nodes[n]['label'] for n in G.nodes},
-        font_size=8, font_weight='bold')
+    # Рисуем рёбра без дуг (прямые линии)
+    nx.draw_networkx_edges(G, pos, edge_color='gray', alpha=0.6,
+        arrows=True, arrowsize=12, width=1.5)
 
-    plt.title("Двудольный граф событий и слотов", fontsize=14, fontweight='bold')
-    plt.legend(scatterpoints=1, loc='upper right', fontsize=10)
+    # Рисуем метки с увеличенным шрифтом
+    labels = {n: G.nodes[n]['label'] for n in G.nodes}
+    nx.draw_networkx_labels(G, pos, labels, font_size=8, font_weight='bold')
+
+    plt.title("Двудольный граф событий и слотов", fontsize=14, fontweight='bold', pad=20)
+
+    # Легенда с увеличенными маркерами и интервалами
+    legend = plt.legend(
+        ['События', 'Слоты'],
+        loc='upper left',
+        fontsize=12,
+        bbox_to_anchor=(1.02, 0.9),
+        frameon=True,
+        fancybox=True,
+        shadow=True,
+        handlelength=2,
+        handletextpad=1.5,
+        labelspacing=2,
+        markerscale=0.3
+    )
+
     plt.axis('off')
-    plt.tight_layout()
+    plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05)
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.show()
 
