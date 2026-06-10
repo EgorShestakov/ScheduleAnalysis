@@ -177,6 +177,15 @@ def rooms_list(room, room_small):
     return [room, room_small]
 
 
+@pytest.fixture
+def rooms_two_for_slots():
+    """Возвращает две аудитории с номерами 101 и 201 для тестов get_all_slots."""
+    return [
+        Room(id=1, number=101, capacity=30, equipment=["доска"]),
+        Room(id=2, number=201, capacity=20, equipment=["компьютеры"])
+    ]
+
+
 # ==================== Фикстуры групп ====================
 
 @pytest.fixture
@@ -252,6 +261,28 @@ def workdays_2(slot_single):
     return [
         WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная", available_slots=[slot_single]),
         WorkDay(date=date(2026, 3, 28), is_holiday=False, day_type="четная", available_slots=[slot_single])
+    ]
+
+
+@pytest.fixture
+def workdays_two_for_slots(slot1, slot2):
+    """Возвращает два рабочих дня для тестов get_all_slots."""
+    return [
+        WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная",
+                available_slots=[slot1, slot2]),
+        WorkDay(date=date(2026, 3, 28), is_holiday=False, day_type="четная",
+                available_slots=[slot1])
+    ]
+
+
+@pytest.fixture
+def workday_with_holiday(slot1):
+    """Возвращает рабочие дни с выходным для теста skip_holidays."""
+    return [
+        WorkDay(date=date(2026, 3, 27), is_holiday=False, day_type="четная",
+                available_slots=[slot1]),
+        WorkDay(date=date(2026, 3, 28), is_holiday=True, day_type="выходной",
+                available_slots=[slot1])
     ]
 
 
