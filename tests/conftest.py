@@ -6,9 +6,9 @@ from src.data_models import Group, Room, Teacher, Event, TimeSlot, WorkDay
 # ==================== Фикстуры событий ====================
 
 @pytest.fixture
-def event(sample_group, teacher):
+def event(group, teacher):
     """Возвращает тестовое событие e1 (Матанализ)."""
-    return Event(id=1, name="Матанализ", group_id=sample_group.id,
+    return Event(id=1, name="Матанализ", group_id=group.id,
                  teacher_id=teacher.id, total_hours=4,
                  required_features=["доска"])
 
@@ -20,17 +20,17 @@ def event_single():
 
 
 @pytest.fixture
-def event_2(sample_group, teacher_2):
+def event_2(group, teacher_2):
     """Возвращает тестовое событие e2 (Численные методы)."""
-    return Event(id=2, name="Численные методы", group_id=sample_group.id,
+    return Event(id=2, name="Численные методы", group_id=group.id,
                  teacher_id=teacher_2.id, total_hours=2,
                  required_features=["доска", "принтер"])
 
 
 @pytest.fixture
-def event_3(sample_group_small, teacher_3):
+def event_3(group_small, teacher_3):
     """Возвращает тестовое событие e3 (Информационные технологии)."""
-    return Event(id=3, name="Информационные технологии", group_id=sample_group_small.id,
+    return Event(id=3, name="Информационные технологии", group_id=group_small.id,
                  teacher_id=teacher_3.id, total_hours=3,
                  required_features=["компьютеры"])
 
@@ -147,6 +147,12 @@ def room():
 def room_small():
     """Возвращает тестовую аудиторию с маленькой вместимостью."""
     return Room(id=2, number=403, capacity=16, equipment=["доска", "принтер"])
+
+
+@pytest.fixture
+def room_without_equipment():
+    """Возвращает тестовую аудиторию с маленькой вместимостью."""
+    return Room(id=2, number=403, capacity=16, equipment=[])
 
 
 @pytest.fixture
