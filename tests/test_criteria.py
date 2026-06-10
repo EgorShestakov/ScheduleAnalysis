@@ -8,7 +8,8 @@
 import pytest
 from datetime import date
 from src.data_models import Group, Room, Teacher, Event, TimeSlot, WorkDay
-from src.criteria import criterion_one, criterion_two
+from src.criteria import criterion_one, criterion_two, criterion_three
+from src.graph_builder import build_bipartite_graph, visualize_bipartite_graph
 
 
 class TestCriterionOne:
@@ -86,7 +87,7 @@ class TestCriterionTwo:
     def test_criterion_two_conflict_table_capacity_only(self, rooms_list, groups_list):
         """Проверяет таблицу причин конфликтов при проблеме только с вместимостью."""
         # Событие с большой группой, аудитории с маленькой вместимостью
-        large_group = Group(id=3, course=1, department="ИАИТ", number="130", size=50)
+        large_group = Group(id=3, course=1, department="ИАИТ", number=130, size=50)
         event_large = Event(id=4, name="Большая группа", group_id=large_group.id,
             teacher_id=1, total_hours=1, required_features=[])
         events = [event_large]
@@ -116,7 +117,7 @@ class TestCriterionTwo:
     def test_criterion_two_conflict_table_both(self, rooms_list, groups_list):
         """Проверяет таблицу причин конфликтов при проблемах и с вместимостью, и с оборудованием."""
         # Событие с большой группой и требованием оборудования
-        large_group = Group(id=6, course=1, department="ИАИТ", number="140", size=100)
+        large_group = Group(id=6, course=1, department="ИАИТ", number=140, size=100)
         event_both = Event(id=6, name="Большая и требовательная", group_id=large_group.id,
             teacher_id=1, total_hours=1, required_features=["суперкомпьютер"])
         events = [event_both]
@@ -171,3 +172,170 @@ class TestCriterionTwo:
         assert success is False
         assert 1 in isolated
         assert 2 not in isolated
+
+
+class TestCriterionThree:
+    """Тесты для функции criterion_three()."""
+
+    def test_criterion_three_perfect_matching_R2(self, groups_list, rooms_list, workday, events_list):
+        """
+        Проверяет нахождение совершенного паросочетания для графа R2.
+        Ожидается, что паросочетание существует (необязательно совершенное, но должно покрыть все события).
+        """
+        # Строим граф R2 (без оснащённости, только вместимость)
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=True,
+            check_equipment=False
+        )
+
+        # Ожидаемый граф R2 должен содержать рёбра:
+        # e1 -> (c1-1), e1 -> (c1-2)
+        # e2 -> (c1-1), e2 -> (c1-2)
+        # e3 -> (c1-1), e3 -> (c1-2), e3 -> (c2-1), e3 -> (c2-2)
+
+        success, matching = criterion_three(graph, events_list)
+
+        # Проверяем, что паросочетание найдено
+        assert success is True
+
+        # Проверяем, что все события получили назначение
+        assert len(matching) == len(events_list)
+
+        # Проверяем, что каждое событие назначено в допустимый слот
+        for event_id, slot in matching.items():
+            assert slot in graph[event_id]
+
+        print(f"\nНайдено совершенное паросочетание для R2:")
+        for event_id, slot in matching.items():
+            event = next(e for e in events_list if e.id == event_id)
+            room_id, date_str, slot_id = slot
+            room = next(r for r in rooms_list if r.id == room_id)
+            print(f"  {event.name} -> каб.{room.number}, слот {slot_id}")
+
+        # Визуализируем граф с выделением найденного паросочетания
+        visualize_bipartite_graph(
+            graph=graph,
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            matching=matching,
+            output_path="graph_R2_with_matching.png"
+        )
+
+    def test_criterion_three_no_perfect_matching_R1(self, groups_list, rooms_list, workday, events_list):
+        """
+        Проверяет, что для графа R1 (с полными ограничениями) совершенного паросочетания нет.
+        """
+        # Строим граф R1 (оба ограничения)
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=True,
+            check_equipment=True
+        )
+
+        # Ожидаемый граф R1:
+        # e1 -> (c1-1), e1 -> (c1-2)
+        # e2 -> нет рёбер
+        # e3 -> (c1-1), e3 -> (c1-2)
+
+        success, matching = criterion_three(graph, events_list)
+
+        # Проверяем, что паросочетание не найдено
+        assert success is False
+        assert matching == {}
+
+    def test_criterion_three_perfect_matching_R3(self, groups_list, rooms_list, workday, events_list):
+        """
+        Проверяет нахождение совершенного паросочетания для графа R3 (без вместимости).
+        """
+        # Строим граф R3 (без вместимости, только оснащённость)
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=False,
+            check_equipment=True
+        )
+
+        success, matching = criterion_three(graph, events_list)
+
+        assert success is True
+        assert len(matching) == len(events_list)
+
+        # Визуализируем
+        visualize_bipartite_graph(
+            graph=graph,
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            matching=matching,
+            output_path="graph_R3_with_matching.png"
+        )
+
+    def test_criterion_three_perfect_matching_R4(self, groups_list, rooms_list, workday, events_list):
+        """
+        Проверяет нахождение совершенного паросочетания для полносвязного графа R4.
+        """
+        # Строим граф R4 (без обоих ограничений)
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=False,
+            check_equipment=False
+        )
+
+        success, matching = criterion_three(graph, events_list)
+
+        assert success is True
+        assert len(matching) == len(events_list)
+
+        # Визуализируем
+        visualize_bipartite_graph(
+            graph=graph,
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            matching=matching,
+            output_path="graph_R4_with_matching.png"
+        )
+
+    def test_criterion_three_empty_graph(self, groups_list, rooms_list, workday, events_list):
+        """Проверяет поведение при пустом графе."""
+        graph = {}
+
+        success, matching = criterion_three(graph, events_list)
+
+        assert success is False
+        assert matching == {}
+
+    def test_criterion_three_single_event(self, groups_list, rooms_list, workday):
+        """Проверяет случай с одним событием."""
+        single_event = [Event(id=1, name="Одно событие", group_id=groups_list[0].id,
+            teacher_id=1, total_hours=1, required_features=["доска"])]
+
+        graph = build_bipartite_graph(
+            events=single_event,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=True,
+            check_equipment=True
+        )
+
+        success, matching = criterion_three(graph, single_event)
+
+        # Для одного события должно найтись паросочетание, если есть хотя бы одно ребро
+        assert success is True
+        assert len(matching) == 1
+
+

@@ -70,11 +70,18 @@ def build_bipartite_graph(events: List[Event], rooms: List[Room], work_days: Lis
     return dict(graph)
 
 
-def visualize_bipartite_graph(graph, events, rooms, work_days, output_path="graph.png"):
+def visualize_bipartite_graph(graph, events, rooms, work_days, matching=None, output_path="graph.png"):
     """
     Визуализирует двудольный граф.
     Левые вершины (события) — красные, правые (слоты) — синие.
     Вершины расположены на двух параллельных линиях в строгом порядке.
+
+    :param graph: словарь смежности {event_id: [(room_id, date, slot_id), ...]}
+    :param events: список событий
+    :param rooms: список аудиторий
+    :param work_days: список рабочих дней
+    :param matching: опциональный словарь {event_id: (room_id, date_str, slot_id)} для выделения рёбер паросочетания
+    :param output_path: путь для сохранения
     """
     G = nx.DiGraph()
 
@@ -83,15 +90,12 @@ def visualize_bipartite_graph(graph, events, rooms, work_days, output_path="grap
 
     # Добавляем вершины левой доли (события)
     for event in sorted_events:
-        # Метка события: только название события (без E{id})
         label = event.name[:15]
         G.add_node(f"E{event.id}", bipartite=0, label=label)
 
-    # Сортируем слоты: сначала по дате, потом по номеру кабинета, потом по номеру слота
+    # Сортируем слоты
     all_slots = []
-    # Сортируем дни по дате
     sorted_days = sorted(work_days, key=lambda d: d.date)
-    # Сортируем комнаты по номеру
     sorted_rooms = sorted(rooms, key=lambda r: r.number)
 
     for day in sorted_days:
@@ -100,7 +104,6 @@ def visualize_bipartite_graph(graph, events, rooms, work_days, output_path="grap
         date_str = day.date.isoformat()
         for room in sorted_rooms:
             for slot in sorted(day.available_slots, key=lambda s: s.number):
-                # Метка слота: дата, кабинет, время
                 label = f"{date_str}\nкаб.{room.number}\n{slot.start_time}-{slot.end_time}"
                 node_id = f"{room.number}_{date_str}_{slot.number}"
                 all_slots.append((node_id, label))
@@ -114,22 +117,18 @@ def visualize_bipartite_graph(graph, events, rooms, work_days, output_path="grap
                 node_id = f"{room.number}_{date_str}_{slot_id}"
                 G.add_edge(f"E{event_id}", node_id)
 
-    # Получаем списки вершин в фиксированном порядке
+    # Получаем списки вершин
     left_nodes = [f"E{event.id}" for event in sorted_events]
     right_nodes = [node_id for node_id, _ in all_slots]
 
-    # Увеличиваем вертикальные интервалы между вершинами
-    left_step = 2.5      # шаг между левыми вершинами
-    right_step = 2.2     # шаг между правыми вершинами
-
-    # Смещение вниз (положительное значение сдвигает вниз, так как y растёт вверх)
-    top_margin = 3.0     # отступ сверху
+    # Задаём координаты
+    left_step = 2.5
+    right_step = 2.2
+    top_margin = 3.0
 
     pos = {}
-
     for i, node in enumerate(left_nodes):
         pos[node] = (0, -i * left_step + top_margin)
-
     for i, node in enumerate(right_nodes):
         pos[node] = (3.5, -i * right_step + top_margin)
 
@@ -144,17 +143,29 @@ def visualize_bipartite_graph(graph, events, rooms, work_days, output_path="grap
         node_color='lightblue', node_size=4000, alpha=0.85,
         linewidths=1.5, edgecolors='black')
 
-    # Рисуем рёбра без дуг (прямые линии)
-    nx.draw_networkx_edges(G, pos, edge_color='gray', alpha=0.6,
-        arrows=True, arrowsize=12, width=1.5)
+    # Рисуем все рёбра серым цветом
+    nx.draw_networkx_edges(G, pos, edge_color='gray', alpha=0.4,
+        arrows=True, arrowsize=10, width=1.0)
 
-    # Рисуем метки с увеличенным шрифтом
+    # Если передано паросочетание, рисуем его рёбра красным цветом поверх
+    if matching:
+        matching_edges = []
+        for event_id, slot in matching.items():
+            room_id, date_str, slot_id = slot
+            room = next((r for r in rooms if r.id == room_id), None)
+            if room:
+                node_id = f"{room.number}_{date_str}_{slot_id}"
+                matching_edges.append((f"E{event_id}", node_id))
+
+        nx.draw_networkx_edges(G, pos, edgelist=matching_edges, edge_color='red', alpha=1.0,
+            arrows=True, arrowsize=12, width=2.5)
+
+    # Рисуем метки
     labels = {n: G.nodes[n]['label'] for n in G.nodes}
     nx.draw_networkx_labels(G, pos, labels, font_size=8, font_weight='bold')
 
     plt.title("Двудольный граф событий и слотов", fontsize=14, fontweight='bold', pad=20)
 
-    # Легенда с увеличенными маркерами и интервалами
     legend = plt.legend(
         ['События', 'Слоты'],
         loc='upper left',

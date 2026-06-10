@@ -125,3 +125,43 @@ def criterion_two(graph: Dict[int, List[Any]], events: List[Any], rooms: List[An
     print(f"{'=' * 140}\n")
 
     return False, [event.id for event in isolated_events]
+
+
+def criterion_three(graph: Dict[int, List[Tuple[int, str, int]]], events: List[Any]) -> Tuple[
+    bool, Dict[int, Tuple[int, str, int]]]:
+    """
+    Проверяет третий критерий — существование совершенного паросочетания.
+    Возвращает (успех, словарь сопоставлений event_id -> (room_id, date_str, slot_id)).
+
+    :param graph: словарь смежности {event_id: [(room_id, date_str, slot_id), ...]}
+    :param events: список событий
+    :param rooms: список аудиторий (не используется напрямую, но может понадобиться для отладки)
+    :param groups: список групп (не используется напрямую)
+    :param work_days: список рабочих дней (не используется напрямую)
+    :return: (True, matching) если паросочетание совершенное, (False, {}) если нет
+    """
+    from src.matching import max_bipartite_matching, is_perfect
+
+    # Получаем все правые вершины (слоты) из графа
+    right_nodes = set()
+    for slots in graph.values():
+        for slot in slots:
+            right_nodes.add(slot)
+    right_nodes = list(right_nodes)
+
+    # Получаем все левые вершины (события)
+    left_nodes = [event.id for event in events]
+
+    # Находим максимальное паросочетание
+    matching = max_bipartite_matching(graph, left_nodes, right_nodes)
+
+    # Проверяем, является ли паросочетание совершенным
+    if is_perfect(matching, len(events)):
+        # Преобразуем matching в удобный формат
+        # matching хранит {slot_key: event_id}, нам нужно {event_id: slot_key}
+        result_matching = {}
+        for slot_key, event_id in matching.items():
+            result_matching[event_id] = slot_key
+        return True, result_matching
+
+    return False, {}
