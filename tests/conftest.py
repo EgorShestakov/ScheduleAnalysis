@@ -36,9 +36,45 @@ def event_3(group_small, teacher_3):
 
 
 @pytest.fixture
+def event_flow(group_small_2, teacher):
+    """Возвращает тестовое событие e1 (Матанализ)."""
+    return Event(id=1, name="Матанализ", group_id=group_small_2.id,
+                 teacher_id=teacher.id, total_hours=4,
+                 required_features=["доска"])
+
+
+@pytest.fixture
+def event_flow_2(group_small_2, teacher_2):
+    """Возвращает тестовое событие e2 (Численные методы)."""
+    return Event(id=2, name="Численные методы", group_id=group_small_2.id,
+                 teacher_id=teacher_2.id, total_hours=2,
+                 required_features=["доска", "принтер"])
+
+
+@pytest.fixture
+def event_flow_3(group_small, teacher_3):
+    """Возвращает тестовое событие e3 (Информационные технологии)."""
+    return Event(id=3, name="Информационные технологии", group_id=group_small.id,
+                 teacher_id=teacher_3.id, total_hours=3,
+                 required_features=["компьютеры"])
+
+
+@pytest.fixture
 def events_list(event, event_2, event_3):
     """Возвращает список всех тестовых событий."""
     return [event, event_2, event_3]
+
+
+@pytest.fixture
+def events_list(event, event_2, event_3):
+    """Возвращает список всех тестовых событий."""
+    return [event, event_2, event_3]
+
+
+@pytest.fixture
+def events_flow_list(event_flow, event_flow_2, event_flow_3):
+    """Возвращает список всех тестовых событий."""
+    return [event_flow, event_flow_2, event_flow_3]
 
 
 @pytest.fixture
@@ -150,6 +186,12 @@ def room_small():
 
 
 @pytest.fixture
+def room_small_2():
+    """Возвращает тестовую аудиторию с маленькой вместимостью."""
+    return Room(id=3, number=404, capacity=17, equipment=["доска", "компьютеры"])
+
+
+@pytest.fixture
 def room_without_equipment():
     """Возвращает тестовую аудиторию с маленькой вместимостью."""
     return Room(id=2, number=403, capacity=16, equipment=[])
@@ -178,6 +220,12 @@ def rooms_list(room, room_small):
 
 
 @pytest.fixture
+def rooms_list_flow(room_small, room_small_2):
+    """Возвращает список всех тестовых аудиторий."""
+    return [room_small_2, room_small]
+
+
+@pytest.fixture
 def rooms_two_for_slots():
     """Возвращает две аудитории с номерами 101 и 201 для тестов get_all_slots."""
     return [
@@ -201,9 +249,21 @@ def group_small():
 
 
 @pytest.fixture
+def group_small_2():
+    """Возвращает тестовую группу с маленькой численностью."""
+    return Group(id=3, course=1, department="ИАИТ", number=130, size=23)
+
+
+@pytest.fixture
 def groups_list(group, group_small):
     """Возвращает список всех тестовых групп."""
     return [group, group_small]
+
+
+@pytest.fixture
+def groups_list_flow(group_small, group_small_2):
+    """Возвращает список всех тестовых групп."""
+    return [group_small_2, group_small]
 
 
 # ==================== Фикстуры временных слотов ====================
@@ -377,6 +437,16 @@ def example_data(groups_list, rooms_list, workday, events_list):
         "rooms": rooms_list,
         "work_days": [workday],
         "events": events_list
+    }
+
+@pytest.fixture
+def example_data_flow(groups_list_flow, rooms_list_flow, workday, events_flow_list):
+    """Возвращает полный набор данных для примера из главы 2."""
+    return {
+        "groups": groups_list_flow,
+        "rooms": rooms_list_flow,
+        "work_days": [workday],
+        "events": events_flow_list
     }
 
 
