@@ -329,6 +329,12 @@ def teacher_no_name():
                    specialization=[], department="ПМиИ")
 
 
+@pytest.fixture
+def teachers_list(teacher, teacher_2, teacher_3):
+    """Возвращает список преподавателей."""
+    return [teacher, teacher_2, teacher_3]
+
+
 # ==================== Фикстуры графа ====================
 
 @pytest.fixture
@@ -375,6 +381,7 @@ def example_data(groups_list, rooms_list, workday, events_list):
 
 
 @pytest.fixture
-def assignment(event, room, slot1):
-    """Возвращает тестовое расписание: событие -> (комната, слот)."""
-    return {event.id: (room.id, slot1.id)}
+def assignment(event, room, workday):
+    """Возвращает тестовое расписание: событие -> (комната, дата, слот)."""
+    slot1 = workday.available_slots[0]
+    return {event.id: (room.id, workday.date.isoformat(), slot1.id)}
