@@ -8,7 +8,8 @@
 import pytest
 from datetime import date
 from src.data_models import Group, Room, Teacher, Event, TimeSlot, WorkDay
-from src.graph_builder import build_bipartite_graph, get_all_slots
+from src.graph_builder import build_bipartite_graph, get_all_slots, get_all_teacher_slots, \
+    build_teacher_bipartite_graph, visualize_teacher_bipartite_graph
 from src.graph_builder import visualize_bipartite_graph, visualize_bipartite_graph_graphviz
 from graphviz import Digraph
 
@@ -556,3 +557,352 @@ class TestExampleVisualization:
             assert output_path.stat().st_size > 0
         except Exception as e:
             pytest.fail(f"Визуализация R4 не должна вызывать исключений: {e}")
+
+
+class TestGetAllTeacherSlots:
+    """Тесты для функции get_all_teacher_slots()."""
+
+    def test_get_all_teacher_slots_success(self, teacher, teacher_2, teacher_3):
+        """Проверяет получение всех комбинаций (teacher_id, t)."""
+        teachers = [teacher, teacher_2, teacher_3]
+        time_slots = [1, 2]
+
+        slots = get_all_teacher_slots(teachers, time_slots)
+
+        # Ожидаем: 3 преподавателя * 2 временных слота = 6
+        assert len(slots) == 6
+
+        # Проверяем, что все комбинации присутствуют
+        teacher_ids = {s[0] for s in slots}
+        assert teacher_ids == {1, 2, 3}
+
+        time_slots_set = {s[1] for s in slots}
+        assert time_slots_set == {1, 2}
+
+    def test_get_all_teacher_slots_empty_teachers(self):
+        """Проверяет поведение при пустом списке преподавателей."""
+        time_slots = [1, 2]
+        slots = get_all_teacher_slots([], time_slots)
+        assert slots == []
+
+    def test_get_all_teacher_slots_empty_time_slots(self, teacher):
+        """Проверяет поведение при пустом списке временных слотов."""
+        slots = get_all_teacher_slots([teacher], [])
+        assert slots == []
+
+
+class TestTeacherExampleFromChapter:
+    """Тесты для примера с преподавателями p1, p2, p3 и событиями e1, e2, e3."""
+
+    @pytest.fixture
+    def teacher_data(self, teacher, teacher_2, teacher_3):
+        """Создаёт тестовых преподавателей с нужной специализацией."""
+        # Переопределяем специализацию для примера
+        teacher.specialization = ["Инф.технологии", "Математический анализ"]
+        teacher_2.specialization = ["Численные методы", "Инф.технологии"]
+        teacher_3.specialization = ["Математический анализ", "Численные методы"]
+        return [teacher, teacher_2, teacher_3]
+
+    @pytest.fixture
+    def teacher_events(self):
+        """Создаёт тестовые события с назначенным временем."""
+        return [
+            Event(id=1, name="Математический анализ", group_id=1, teacher_id=None,
+                total_hours=1, required_features=[], time=1),
+            Event(id=2, name="Численные методы", group_id=1, teacher_id=None,
+                total_hours=1, required_features=[], time=2),
+            Event(id=3, name="Инф.технологии", group_id=2, teacher_id=None,  # ← исправлено
+                total_hours=1, required_features=[], time=1),
+        ]
+
+    def test_original_graph_with_time_and_spec(self, teacher_data, teacher_events, tmp_path):
+        """Проверяет построение исходного графа (с учётом времени и специализации)."""
+        time_slots = [1, 2]
+
+        graph = build_teacher_bipartite_graph(
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            check_time=True,
+            check_specialization=True
+        )
+
+        # e1 (Мат.анализ, t=1) могут вести: p1, p3
+        assert len(graph[1]) == 2
+        assert (1, 1) in graph[1]  # p1, t=1
+        assert (3, 1) in graph[1]  # p3, t=1
+
+        # e2 (Численные методы, t=2) могут вести: p2, p3
+        assert len(graph[2]) == 2
+        assert (2, 2) in graph[2]  # p2, t=2
+        assert (3, 2) in graph[2]  # p3, t=2
+
+        # e3 (Инф.технологии, t=1) могут вести: p1, p2
+        assert len(graph[3]) == 2
+        assert (1, 1) in graph[3]  # p1, t=1
+        assert (2, 1) in graph[3]  # p2, t=1
+
+        # Визуализация
+        output_path = tmp_path / "teacher_graph_original.png"
+        visualize_teacher_bipartite_graph(
+            graph=graph,
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            output_path=str(output_path)
+        )
+
+    def test_graph_without_specialization(self, teacher_data, teacher_events, tmp_path):
+        """Проверяет построение графа без ограничения специализации (только время)."""
+        time_slots = [1, 2]
+
+        graph = build_teacher_bipartite_graph(
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            check_time=True,
+            check_specialization=False
+        )
+
+        # Без специализации все преподаватели могут вести любые предметы
+        # e1 (t=1) может вести любой преподаватель в t=1
+        assert len(graph[1]) == 3  # p1, p2, p3 в t=1
+        assert (1, 1) in graph[1]
+        assert (2, 1) in graph[1]
+        assert (3, 1) in graph[1]
+
+        # e2 (t=2) может вести любой преподаватель в t=2
+        assert len(graph[2]) == 3  # p1, p2, p3 в t=2
+        assert (1, 2) in graph[2]
+        assert (2, 2) in graph[2]
+        assert (3, 2) in graph[2]
+
+        # e3 (t=1) может вести любой преподаватель в t=1
+        assert len(graph[3]) == 3  # p1, p2, p3 в t=1
+
+        # Визуализация
+        output_path = tmp_path / "teacher_graph_without_spec.png"
+        visualize_teacher_bipartite_graph(
+            graph=graph,
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            output_path=str(output_path)
+        )
+
+    def test_graph_without_time(self, teacher_data, teacher_events, tmp_path):
+        """Проверяет построение графа без временного ограничения (только специализация)."""
+        time_slots = [1, 2]
+
+        graph = build_teacher_bipartite_graph(
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            check_time=False,
+            check_specialization=True
+        )
+
+        # e1 (Мат.анализ) могут вести p1, p3, на любом временном слоте
+        assert len(graph[1]) == 4  # p1,t=1; p1,t=2; p3,t=1; p3,t=2
+        assert (1, 1) in graph[1]
+        assert (1, 2) in graph[1]
+        assert (3, 1) in graph[1]
+        assert (3, 2) in graph[1]
+
+        # e2 (Численные методы) могут вести p2, p3, на любом временном слоте
+        assert len(graph[2]) == 4
+        assert (2, 1) in graph[2]
+        assert (2, 2) in graph[2]
+        assert (3, 1) in graph[2]
+        assert (3, 2) in graph[2]
+
+        # e3 (Инф.технологии) могут вести p1, p2, на любом временном слоте
+        assert len(graph[3]) == 4
+        assert (1, 1) in graph[3]
+        assert (1, 2) in graph[3]
+        assert (2, 1) in graph[3]
+        assert (2, 2) in graph[3]
+
+        # Визуализация
+        output_path = tmp_path / "teacher_graph_without_time.png"
+        visualize_teacher_bipartite_graph(
+            graph=graph,
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            output_path=str(output_path)
+        )
+
+    def test_graph_without_both_checks(self, teacher_data, teacher_events, tmp_path):
+        """Проверяет построение полносвязного графа (без времени и без специализации)."""
+        time_slots = [1, 2]
+
+        graph = build_teacher_bipartite_graph(
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            check_time=False,
+            check_specialization=False
+        )
+
+        # 3 события * 3 преподавателя * 2 временных слота = 18
+        total_edges = sum(len(edges) for edges in graph.values())
+        assert total_edges == 18
+
+        for event_id in [1, 2, 3]:
+            assert len(graph[event_id]) == 6  # 3 преподавателя * 2 слота
+
+        # Визуализация
+        output_path = tmp_path / "teacher_graph_full.png"
+        visualize_teacher_bipartite_graph(
+            graph=graph,
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            output_path=str(output_path)
+        )
+
+    def test_teacher_graph_without_event_time(self, teacher_data, tmp_path):
+        """Проверяет, что события без времени не получают рёбер при check_time=True."""
+        events_without_time = [
+            Event(id=1, name="Математический анализ", group_id=1, teacher_id=None,
+                  total_hours=1, required_features=[], time=None),
+        ]
+        time_slots = [1, 2]
+
+        graph = build_teacher_bipartite_graph(
+            events=events_without_time,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            check_time=True,
+            check_specialization=True
+        )
+
+        # Должно быть 0 рёбер, так как время не задано
+        assert len(graph.get(1, [])) == 0
+
+        # Визуализация пустого графа
+        output_path = tmp_path / "teacher_graph_no_time.png"
+        visualize_teacher_bipartite_graph(
+            graph=graph,
+            events=events_without_time,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            output_path=str(output_path)
+        )
+
+    def test_teacher_graph_without_teachers(self, teacher_events, tmp_path):
+        """Проверяет поведение при пустом списке преподавателей."""
+        time_slots = [1, 2]
+
+        graph = build_teacher_bipartite_graph(
+            events=teacher_events,
+            teachers=[],
+            time_slots=time_slots,
+            check_time=True,
+            check_specialization=True
+        )
+
+        for event_id in [1, 2, 3]:
+            assert len(graph.get(event_id, [])) == 0
+
+        # Визуализация графа без преподавателей
+        output_path = tmp_path / "teacher_graph_no_teachers.png"
+        visualize_teacher_bipartite_graph(
+            graph=graph,
+            events=teacher_events,
+            teachers=[],
+            time_slots=time_slots,
+            output_path=str(output_path)
+        )
+
+
+class TestTeacherVisualization:
+    """Тесты визуализации графа преподавателей."""
+
+    @pytest.fixture
+    def teacher_data(self, teacher, teacher_2, teacher_3):
+        """Создаёт тестовых преподавателей с нужной специализацией."""
+        # Переопределяем специализацию для примера
+        teacher.specialization = ["Инф.технологии", "Математический анализ"]
+        teacher_2.specialization = ["Численные методы", "Инф.технологии"]
+        teacher_3.specialization = ["Математический анализ", "Численные методы"]
+        return [teacher, teacher_2, teacher_3]
+
+    @pytest.fixture
+    def teacher_events(self):
+        """Создаёт тестовые события с назначенным временем."""
+        return [
+            Event(id=1, name="Математический анализ", group_id=1, teacher_id=None,
+                total_hours=1, required_features=[], time=1),
+            Event(id=2, name="Численные методы", group_id=1, teacher_id=None,
+                total_hours=1, required_features=[], time=2),
+            Event(id=3, name="Инф.технологии", group_id=2, teacher_id=None,  # ← исправлено
+                total_hours=1, required_features=[], time=1),
+        ]
+
+    def test_visualize_teacher_graph(self, teacher_data, teacher_events, tmp_path):
+        """Проверяет визуализацию графа преподавателей."""
+        time_slots = [1, 2]
+
+        graph = build_teacher_bipartite_graph(
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            check_time=True,
+            check_specialization=True
+        )
+
+        output_path = tmp_path / "teacher_graph.png"
+
+        try:
+            visualize_teacher_bipartite_graph(
+                graph=graph,
+                events=teacher_events,
+                teachers=teacher_data,
+                time_slots=time_slots,
+                output_path=str(output_path)
+            )
+            assert output_path.exists()
+            assert output_path.stat().st_size > 0
+        except Exception as e:
+            pytest.fail(f"Визуализация графа преподавателей не должна вызывать исключений: {e}")
+
+    def test_visualize_teacher_graph_with_matching(self, teacher_data, teacher_events, tmp_path):
+        from src.matching import max_bipartite_matching
+
+        time_slots = [1, 2]
+
+        graph = build_teacher_bipartite_graph(
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            check_time=True,
+            check_specialization=True
+        )
+
+        left_nodes = [event.id for event in teacher_events]
+        right_nodes = get_all_teacher_slots(teacher_data, time_slots)
+
+        # matching в формате {right_node: left_node}
+        matching_reverse = max_bipartite_matching(graph, left_nodes, right_nodes)
+
+        # Преобразуем в прямой формат {event_id: (teacher_id, t)}
+        matching = {}
+        for slot, event_id in matching_reverse.items():
+            teacher_id, t = slot
+            matching[event_id] = (teacher_id, t)
+
+        output_path = tmp_path / "teacher_graph_with_matching.png"
+
+        visualize_teacher_bipartite_graph(
+            graph=graph,
+            events=teacher_events,
+            teachers=teacher_data,
+            time_slots=time_slots,
+            matching=matching,  # передаём прямой формат
+            output_path=str(output_path)
+        )
+
+        assert output_path.exists()
+        assert output_path.stat().st_size > 0
