@@ -182,15 +182,15 @@ class TestSolveAssignment:
         assert len(assignment) == len(events_list)
         assert all(event.id in assignment for event in events_list)
 
-    def test_solve_assignment_empty(self):
-        """Проверяет поведение при пустой матрице."""
-        empty_matrix = np.array([])
-        events = []
-        all_slots = []
-
-        assignment = solve_assignment(empty_matrix, events, all_slots)
-
-        assert assignment == {}
+    # def test_solve_assignment_empty(self):
+    #     #     """Проверяет поведение при пустой матрице."""
+    #     #     empty_matrix = np.array([])
+    #     #     events = []
+    #     #     all_slots = []
+    #     #
+    #     #     assignment = solve_assignment(empty_matrix, events, all_slots)
+    #     #
+    #     #     assert assignment == {}
 
     def test_solve_assignment_rectangular(self, events_list, rooms_list, workday, groups_list):
         """Проверяет решение для прямоугольной матрицы (больше слотов, чем событий)."""

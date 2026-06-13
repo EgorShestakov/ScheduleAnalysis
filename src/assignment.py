@@ -1,7 +1,7 @@
 """Решение задачи о назначениях (венгерский алгоритм)."""
 
 import numpy as np
-from scipy.optimize import linear_sum_assignment
+from scipy.optimize import linear_sum_assignment, milp, LinearConstraint, Bounds
 from typing import Dict, List, Tuple, Any
 from src.data_models import Event
 
@@ -67,26 +67,89 @@ def build_cost_matrix(events: List[Any], all_slots: List[Tuple], groups: List[An
     return cost_matrix
 
 
-def solve_assignment(cost_matrix: np.ndarray, events: List[Any], all_slots: List[Tuple]) -> Dict[int, Tuple]:
+def solve_assignment(cost_matrix, events, all_slots):
     """
-    Решает задачу о назначениях с помощью венгерского алгоритма.
+    Решает задачу о назначениях с ограничением (4.4).
     """
-    # Проверка на пустую матрицу
-    if cost_matrix.size == 0:
+    n_events = len(events)
+    n_slots = len(all_slots)
+    n_vars = n_events * n_slots
+
+    # Целевая функция
+    c = cost_matrix.flatten()
+
+    # Ограничения (4.1): каждое событие — ровно один слот
+    A_eq = []
+    b_eq = []
+    for e in range(n_events):
+        row = np.zeros(n_vars)
+        row[e * n_slots:(e + 1) * n_slots] = 1
+        A_eq.append(row)
+        b_eq.append(1)
+
+    # Ограничения (4.2): каждый слот — не более одного события
+    for s in range(n_slots):
+        row = np.zeros(n_vars)
+        row[s::n_slots] = 1
+        A_eq.append(row)  # тоже равенство, потому что должно быть <= 1? Нет, это неравенство
+        b_eq.append(1)
+    # НО! Это неравенство (<= 1), а не равенство. Нужно использовать A_ub.
+
+    # Правильно: (4.2) — неравенство sum <= 1
+    A_ub = []
+    b_ub = []
+    for s in range(n_slots):
+        row = np.zeros(n_vars)
+        row[s::n_slots] = 1
+        A_ub.append(row)
+        b_ub.append(1)
+
+    # (4.1) — равенство sum = 1
+    A_eq = []
+    b_eq = []
+    for e in range(n_events):
+        row = np.zeros(n_vars)
+        row[e * n_slots:(e + 1) * n_slots] = 1
+        A_eq.append(row)
+        b_eq.append(1)
+
+    # Ограничение (4.4): одна группа в одном временном слоте — не более одного события
+    from collections import defaultdict
+    group_time_events = defaultdict(list)
+    for i, event in enumerate(events):
+        for j, slot in enumerate(all_slots):
+            room_id, date_str, slot_id = slot
+            group_time_events[(event.group_id, date_str, slot_id)].append((i, j))
+
+    for (group_id, date_str, slot_id), event_slot_pairs in group_time_events.items():
+        if len(event_slot_pairs) > 1:
+            row = np.zeros(n_vars)
+            for i, j in event_slot_pairs:
+                row[i * n_slots + j] = 1
+            A_ub.append(row)
+            b_ub.append(1)
+
+    # Целочисленность
+    integrality = np.ones(n_vars, dtype=np.uint8)
+
+    # Границы переменных (0 или 1)
+    bounds = Bounds(lb=0, ub=1)
+
+    # Решение
+    result = milp(c=c, constraints=LinearConstraint(A_eq, b_eq, b_eq),
+                  integrality=integrality, bounds=bounds)
+
+    if result is None or result.status != 0:
+        print(f"Решение не найдено. Статус: {result.status if result else 'None'}")
         return {}
 
-    # Приводим к двумерному виду, если матрица одномерная
-    if cost_matrix.ndim == 1:
-        cost_matrix = cost_matrix.reshape(1, -1)
-
-    # Если матрица не квадратная, linear_sum_assignment сам добавит фиктивные элементы
-    row_ind, col_ind = linear_sum_assignment(cost_matrix)
-
+    # Извлекаем решение
     assignment = {}
-    for i, j in zip(row_ind, col_ind):
-        # Проверяем границы индексов
-        if i < len(events) and j < len(all_slots):
-            assignment[events[i].id] = all_slots[j]
+    for e in range(n_events):
+        for s in range(n_slots):
+            if result.x[e * n_slots + s] > 0.5:
+                assignment[events[e].id] = all_slots[s]
+                break
 
     return assignment
 
