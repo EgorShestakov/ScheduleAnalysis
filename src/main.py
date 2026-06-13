@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 from src.data_loader import load_all
-from src.criteria import criterion_one, criterion_two, criterion_three
+from src.criteria import criterion_one, criterion_two, criterion_three, criterion_four
 from src.matching import max_bipartite_matching, is_perfect
 from src.assignment import build_cost_matrix, solve_assignment, print_assignment_details
 from src.graph_builder import build_bipartite_graph, get_all_slots
@@ -193,9 +193,10 @@ def main():
         return
 
     # Шаг 2: Проверка первого критерия
-    if not show_criterion_one_result(events, rooms, work_days):
-        if get_user_choice("Первый критерий не выполнен. Что делать?",
-                          ["Завершить работу", "Продолжить анализ (диагностика)"]) == "Завершить работу":
+    if not criterion_one(events, rooms, work_days):
+        choice = get_user_choice("Первый критерий не выполнен. Что делать?",
+                                ["Завершить работу", "Продолжить анализ (диагностика)"])
+        if choice == "Завершить работу":
             return
 
     # Шаг 3: Построение двудольного графа
@@ -212,66 +213,26 @@ def main():
 
     # Шаг 4: Проверка второго критерия
     print("\n[3] Проверка второго критерия...")
-    left_nodes = [e.id for e in events]
-    right_nodes = get_all_slots(rooms, work_days)
-
-    isolated_events = []
-    for event in events:
-        if event.id not in bipartite_graph or len(bipartite_graph.get(event.id, [])) == 0:
-            isolated_events.append(event)
-
-    if isolated_events:
-        print(f"❌ Найдены изолированные события: {[e.name for e in isolated_events]}")
-        choice = get_user_choice("Что делать?",
-                                ["Вывести таблицу причин конфликтов",
-                                 "Продолжить с существующими событиями",
-                                 "Завершить работу"])
+    success_two, isolated_ids = criterion_two(bipartite_graph, events, rooms, groups)
+    if not success_two:
+        choice = get_user_choice("Второй критерий не выполнен. Что делать?",
+                                ["Продолжить с существующими событиями", "Завершить работу"])
         if choice == "Завершить работу":
             return
-        elif choice == "Вывести таблицу причин конфликтов":
-            print("\nТАБЛИЦА ПРИЧИН КОНФЛИКТОВ")
-            print("-" * 80)
-            for event in isolated_events:
-                for room in rooms:
-                    capacity_ok = any(g.size <= room.capacity for g in groups if g.id == event.group_id)
-                    equipment_ok = set(event.required_features).issubset(set(room.equipment))
-                    if not capacity_ok and not equipment_ok:
-                        print(f"{event.name} -> каб.{room.number}: не хватает мест и оборудования")
-                    elif not capacity_ok:
-                        print(f"{event.name} -> каб.{room.number}: не хватает мест")
-                    elif not equipment_ok:
-                        missing = set(event.required_features) - set(room.equipment)
-                        print(f"{event.name} -> каб.{room.number}: нет: {', '.join(missing)}")
-            print("-" * 80)
-    else:
-        print("✅ Все события имеют хотя бы одно возможное назначение")
 
-    # Шаг 5: Поиск совершенного паросочетания
+    # Шаг 5: Проверка третьего критерия (поиск совершенного паросочетания)
     print("\n[4] Поиск совершенного паросочетания...")
-    matching = max_bipartite_matching(bipartite_graph, left_nodes, right_nodes)
-    perfect = is_perfect(matching, len(events))
+    perfect, matching = criterion_three(bipartite_graph, events)
 
     if perfect:
         print("✅ Найдено совершенное паросочетание!")
 
-        # Преобразуем matching в прямой формат
-        direct_matching = {}
-        for slot, event_id in matching.items():
-            direct_matching[event_id] = slot
+        # Преобразуем matching в прямой формат (уже в criterion_three это сделано)
+        direct_matching = matching
 
-        # Шаг 6: Проверка на мнимость расписания
+        # Шаг 6: Проверка четвёртого критерия (мнимые расписания)
         print("\n[5] Проверка на мнимые расписания...")
-        group_slots = {}
-        has_conflicts = False
-        for event_id, (room_id, date_str, slot_id) in direct_matching.items():
-            event = next(e for e in events if e.id == event_id)
-            key = (event.group_id, date_str, slot_id)
-            if key in group_slots:
-                has_conflicts = True
-                break
-            group_slots[key] = event_id
-
-        if has_conflicts:
+        if not criterion_four(direct_matching, events):
             print("⚠️ Обнаружены мнимые конфликты (одна группа в одно время в разных аудиториях)")
             choice = get_user_choice("Что делать?",
                                     ["Решить задачу о назначениях (оптимизация)",
@@ -283,15 +244,22 @@ def main():
                 all_slots = get_all_slots(rooms, work_days)
                 cost_matrix = build_cost_matrix(events, all_slots, groups, rooms)
                 assignment = solve_assignment(cost_matrix, events, all_slots)
-                print_assignment_details(assignment, cost_matrix, events, all_slots, groups, rooms)
+                if not criterion_four(assignment, events):
+                    print("ВСЁ РАВНО НЕ ВЫПОЛНЯЕТСЯ 4 КРИТЕРИЙ")
+                # print_assignment_details(assignment, cost_matrix, events, all_slots, groups, rooms)
 
                 # Экспорт расписаний
                 export_students_schedule(assignment, events, groups, work_days, time_slots, OUTPUT_DIR)
                 export_teachers_schedule(assignment, events, teachers, work_days, time_slots, OUTPUT_DIR)
                 print("   Расписания сохранены в data/output/")
+            else:
+                # Принять расписание как есть
+                assignment = direct_matching
+                export_students_schedule(assignment, events, groups, work_days, time_slots, OUTPUT_DIR)
+                export_teachers_schedule(assignment, events, teachers, work_days, time_slots, OUTPUT_DIR)
+                print("   Расписания сохранены в data/output/")
         else:
             print("✅ Мнимых конфликтов нет")
-
             assignment = direct_matching
 
             # Экспорт расписаний
@@ -306,6 +274,8 @@ def main():
             else:
                 print("\n✅ Работа завершена. Расписание готово!")
                 return
+    else:
+        print("❌ Совершенное паросочетание не найдено")
 
     # Шаг 7: Диагностика (если паросочетание не найдено или запрошен анализ)
     if not perfect:

@@ -8,7 +8,7 @@
 import pytest
 from datetime import date
 from src.data_models import Group, Room, Teacher, Event, TimeSlot, WorkDay
-from src.criteria import criterion_one, criterion_two, criterion_three
+from src.criteria import criterion_one, criterion_two, criterion_three, criterion_four
 from src.graph_builder import build_bipartite_graph, visualize_bipartite_graph
 
 
@@ -337,5 +337,251 @@ class TestCriterionThree:
         # Для одного события должно найтись паросочетание, если есть хотя бы одно ребро
         assert success is True
         assert len(matching) == 1
+
+
+class TestCriterionFour:
+    """Тесты для функции criterion_four()."""
+
+    def test_criterion_four_no_conflicts(self, groups_list, rooms_list, workday, events_list, tmp_path):
+        """
+        Проверяет, что при отсутствии мнимых конфликтов возвращает True.
+        Строим граф R2, находим паросочетание и визуализируем.
+        """
+        # Строим граф R2 (без оснащённости, только вместимость)
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=True,
+            check_equipment=False
+        )
+
+        success, matching = criterion_three(graph, events_list)
+        assert success is True
+
+        # Проверяем на мнимость (groups_list не передаём)
+        result = criterion_four(matching, events_list)
+        assert result is True
+
+        # Визуализируем граф с паросочетанием
+        visualize_bipartite_graph(
+            graph=graph,
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            matching=matching,
+            output_path=str(tmp_path / "test_criterion_four_no_conflicts.png")
+        )
+
+    def test_criterion_four_with_conflicts(self, groups_list, rooms_list, workday, events_list, tmp_path):
+        """
+        Проверяет, что при наличии мнимых конфликтов возвращает False.
+        Для этого искусственно создаём паросочетание с конфликтом.
+        """
+        # Строим граф R2
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=True,
+            check_equipment=False
+        )
+
+        # Получаем обычное паросочетание
+        success, original_matching = criterion_three(graph, events_list)
+        assert success is True
+
+        # Искусственно создаём конфликт: два события одной группы в один слот
+        # Находим два события одной группы
+        group_events = [e for e in events_list if e.group_id == groups_list[0].id]
+        if len(group_events) >= 2:
+            # Берём первое событие и назначаем его в тот же слот, что и второе
+            conflicting_matching = original_matching.copy()
+            event1 = group_events[0]
+            event2 = group_events[1]
+            if event2.id in conflicting_matching:
+                conflicting_matching[event1.id] = conflicting_matching[event2.id]
+
+            result = criterion_four(conflicting_matching, events_list)
+            assert result is False
+
+            # Визуализируем граф с конфликтным паросочетанием
+            visualize_bipartite_graph(
+                graph=graph,
+                events=events_list,
+                rooms=rooms_list,
+                work_days=[workday],
+                matching=conflicting_matching,
+                output_path=str(tmp_path / "test_criterion_four_with_conflicts.png")
+            )
+
+    def test_criterion_four_same_group_different_dates(self, groups_list, rooms_list, workday, events_list, tmp_path):
+        """
+        Проверяет, что одна группа в разные даты на одной паре — не конфликт.
+        """
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=True,
+            check_equipment=False
+        )
+
+        success, matching = criterion_three(graph, events_list)
+        assert success is True
+
+        # Модифицируем расписание: переносим одно событие на другой день
+        if len(matching) >= 2:
+            modified_matching = matching.copy()
+            keys = list(modified_matching.keys())
+            event_id = keys[0]
+            room_id, date_str, slot_id = modified_matching[event_id]
+            # Меняем дату на следующий день
+            modified_matching[event_id] = (room_id, "2025-09-03", slot_id)
+
+            result = criterion_four(modified_matching, events_list)
+            assert result is True
+
+            # Визуализируем
+            visualize_bipartite_graph(
+                graph=graph,
+                events=events_list,
+                rooms=rooms_list,
+                work_days=[workday],
+                matching=modified_matching,
+                output_path=str(tmp_path / "test_criterion_four_same_group_different_dates.png")
+            )
+
+    def test_criterion_four_empty_assignment(self, groups_list, rooms_list, workday, events_list, tmp_path):
+        """Проверяет поведение при пустом расписании."""
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=True,
+            check_equipment=False
+        )
+
+        empty_matching = {}
+        result = criterion_four(empty_matching, events_list)
+        assert result is True
+
+        # Визуализируем пустой граф
+        visualize_bipartite_graph(
+            graph=graph,
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            matching=None,
+            output_path=str(tmp_path / "test_criterion_four_empty_assignment.png")
+        )
+
+    def test_criterion_four_real_data_R1(self, groups_list, rooms_list, workday, events_list, tmp_path):
+        """
+        Проверяет на графе R1 (с полными ограничениями).
+        В R1 у события e2 нет рёбер, поэтому паросочетания не будет.
+        """
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=True,
+            check_equipment=True
+        )
+
+        success, matching = criterion_three(graph, events_list)
+        if success:
+            result = criterion_four(matching, events_list)
+            visualize_bipartite_graph(
+                graph=graph,
+                events=events_list,
+                rooms=rooms_list,
+                work_days=[workday],
+                matching=matching,
+                output_path=str(tmp_path / "test_criterion_four_R1.png")
+            )
+        else:
+            # Если паросочетания нет, визуализируем граф без matching
+            visualize_bipartite_graph(
+                graph=graph,
+                events=events_list,
+                rooms=rooms_list,
+                work_days=[workday],
+                matching=None,
+                output_path=str(tmp_path / "test_criterion_four_R1_no_matching.png")
+            )
+
+        # Функция должна отработать без ошибок
+        assert isinstance(success, bool)
+
+    def test_criterion_four_real_data_R3(self, groups_list, rooms_list, workday, events_list, tmp_path):
+        """
+        Проверяет на графе R3 (без вместимости, только оснащённость).
+        """
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=False,
+            check_equipment=True
+        )
+
+        success, matching = criterion_three(graph, events_list)
+        if success:
+            result = criterion_four(matching, events_list)
+            visualize_bipartite_graph(
+                graph=graph,
+                events=events_list,
+                rooms=rooms_list,
+                work_days=[workday],
+                matching=matching,
+                output_path=str(tmp_path / "test_criterion_four_R3.png")
+            )
+            assert isinstance(result, bool)
+        else:
+            visualize_bipartite_graph(
+                graph=graph,
+                events=events_list,
+                rooms=rooms_list,
+                work_days=[workday],
+                matching=None,
+                output_path=str(tmp_path / "test_criterion_four_R3_no_matching.png")
+            )
+
+    def test_criterion_four_real_data_R4(self, groups_list, rooms_list, workday, events_list, tmp_path):
+        """
+        Проверяет на полносвязном графе R4.
+        """
+        graph = build_bipartite_graph(
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            groups=groups_list,
+            check_capacity=False,
+            check_equipment=False
+        )
+
+        success, matching = criterion_three(graph, events_list)
+        assert success is True
+
+        result = criterion_four(matching, events_list)
+        assert isinstance(result, bool)
+
+        visualize_bipartite_graph(
+            graph=graph,
+            events=events_list,
+            rooms=rooms_list,
+            work_days=[workday],
+            matching=matching,
+            output_path=str(tmp_path / "test_criterion_four_R4.png")
+        )
+
+
 
 

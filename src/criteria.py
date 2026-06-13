@@ -165,3 +165,32 @@ def criterion_three(graph: Dict[int, List[Tuple[int, str, int]]], events: List[A
         return True, result_matching
 
     return False, {}
+
+
+def criterion_four(assignment: Dict[int, Tuple[int, str, int]], events: List[Any]) -> bool:
+    """
+    Проверяет четвёртый критерий — отсутствие накладок у группы (мнимых расписаний).
+
+    :param assignment: словарь {event_id: (room_id, date_str, slot_id)}
+    :param events: список событий
+    :return: True если нет мнимых конфликтов, False если есть
+    """
+    event_by_id = {e.id: e for e in events}
+
+    # Группируем назначения по группе, дате и временному слоту
+    # Если для одной группы в одну дату и один слот попадает больше одного события — конфликт
+    group_slots = {}
+
+    for event_id, (room_id, date_str, slot_id) in assignment.items():
+        event = event_by_id.get(event_id)
+        if event is None:
+            continue
+        group_id = event.group_id
+
+        key = (group_id, date_str, slot_id)
+        if key in group_slots:
+            # Уже есть событие для этой группы в это время → мнимое расписание
+            return False
+        group_slots[key] = event_id
+
+    return True
