@@ -8,44 +8,27 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 
-def get_all_slots(rooms: List[Room], work_days: List[WorkDay]) -> List[Tuple[int, str, int]]:
-    """
-    Возвращает список всех возможных слотов (room_id, date, timeslot_id).
-    """
+def get_all_slots_for_day(rooms: List[Room], work_day: WorkDay) -> List[Tuple[int, int]]:
+    """Возвращает список всех слотов (room_id, slot_id) для одного дня."""
     slots = []
-
     for room in rooms:
-        for work_day in work_days:
-            if work_day.is_holiday:
-                continue  # пропускаем выходные дни
-            for timeslot in work_day.available_slots:
-                slots.append((room.id, work_day.date.isoformat(), timeslot.id))
-
+        for slot in work_day.available_slots:
+            slots.append((room.id, slot.id))
     return slots
 
 
-def build_bipartite_graph(events: List[Event], rooms: List[Room], work_days: List[WorkDay],
+def build_bipartite_graph(events: List[Event], rooms: List[Room], work_day: WorkDay,
                           groups: List[Group], check_capacity: bool = True,
-                          check_equipment: bool = True) -> Dict[int, List[Tuple[int, str, int]]]:
+                          check_equipment: bool = True) -> Dict[int, List[Tuple[int, int]]]:
     """
-    Строит двудольный граф H = (E, C×T, R1).
-    Возвращает словарь смежности: event_id -> list[(room_id, date, timeslot_id)].
-
-    :param events: список событий
-    :param rooms: список аудиторий
-    :param work_days: список рабочих дней
-    :param groups: словарь групп {group_id: Group}
-    :param check_capacity: учитывать ли ограничение вместимости
-    :param check_equipment: учитывать ли ограничение оснащённости
-    :return: словарь смежности event_id -> список слотов
+    Строит двудольный граф для ОДНОГО дня.
+    Возвращает словарь смежности: event_id -> list[(room_id, slot_id)].
     """
-    # Получаем все возможные слоты
-    all_slots = get_all_slots(rooms, work_days)
+    all_slots = get_all_slots_for_day(rooms, work_day)  # список (room_id, slot_id)
 
-    # Создаём словари для быстрого доступа
-    group_by_id = {group.id: group for group in groups}
-    room_capacity = {room.id: room.capacity for room in rooms}
-    room_equipment = {room.id: set(room.equipment) for room in rooms}
+    group_by_id = {g.id: g for g in groups}
+    room_capacity = {r.id: r.capacity for r in rooms}
+    room_equipment = {r.id: set(r.equipment) for r in rooms}
 
     graph = defaultdict(list)
 
@@ -56,33 +39,32 @@ def build_bipartite_graph(events: List[Event], rooms: List[Room], work_days: Lis
 
         event_requirements = set(event.required_features)
 
-        for room_id, date_str, timeslot_id in all_slots:
-            # Проверка вместимости
+        for room_id, slot_id in all_slots:
             if check_capacity and group.size > room_capacity[room_id]:
                 continue
-
-            # Проверка оборудования
             if check_equipment and not event_requirements.issubset(room_equipment[room_id]):
                 continue
-
-            graph[event.id].append((room_id, date_str, timeslot_id))
+            graph[event.id].append((room_id, slot_id))
 
     return dict(graph)
 
 
-def visualize_bipartite_graph(graph, events, rooms, work_days, matching=None, output_path="graph.png"):
+def visualize_bipartite_graph(graph, events, rooms, work_day, matching=None, output_path="graph.png"):
     """
-    Визуализирует двудольный граф.
+    Визуализирует двудольный граф для ОДНОГО дня.
     Левые вершины (события) — красные, правые (слоты) — синие.
     Вершины расположены на двух параллельных линиях в строгом порядке.
 
-    :param graph: словарь смежности {event_id: [(room_id, date, slot_id), ...]}
+    :param graph: словарь смежности {event_id: [(room_id, slot_id), ...]}
     :param events: список событий
     :param rooms: список аудиторий
-    :param work_days: список рабочих дней
-    :param matching: опциональный словарь {event_id: (room_id, date_str, slot_id)} для выделения рёбер паросочетания
+    :param work_day: рабочий день (объект WorkDay)
+    :param matching: опциональный словарь {event_id: (room_id, slot_id)} для выделения рёбер паросочетания
     :param output_path: путь для сохранения
     """
+    import matplotlib.pyplot as plt
+    import networkx as nx
+
     G = nx.DiGraph()
 
     # Сортируем события по id для фиксированного порядка
@@ -93,28 +75,24 @@ def visualize_bipartite_graph(graph, events, rooms, work_days, matching=None, ou
         label = event.name[:15]
         G.add_node(f"E{event.id}", bipartite=0, label=label)
 
-    # Сортируем слоты
+    # Сортируем слоты для одного дня
     all_slots = []
-    sorted_days = sorted(work_days, key=lambda d: d.date)
+    date_str = work_day.date.isoformat()
     sorted_rooms = sorted(rooms, key=lambda r: r.number)
 
-    for day in sorted_days:
-        if day.is_holiday:
-            continue
-        date_str = day.date.isoformat()
-        for room in sorted_rooms:
-            for slot in sorted(day.available_slots, key=lambda s: s.number):
-                label = f"{date_str}\nкаб.{room.number}\n{slot.start_time}-{slot.end_time}"
-                node_id = f"{room.number}_{date_str}_{slot.number}"
-                all_slots.append((node_id, label))
-                G.add_node(node_id, bipartite=1, label=label)
+    for room in sorted_rooms:
+        for slot in sorted(work_day.available_slots, key=lambda s: s.number):
+            label = f"{date_str}\nкаб.{room.number}\n{slot.start_time}-{slot.end_time}"
+            node_id = f"{room.number}_{slot.number}"
+            all_slots.append((node_id, label))
+            G.add_node(node_id, bipartite=1, label=label)
 
     # Добавляем рёбра
     for event_id, slots in graph.items():
-        for room_id, date_str, slot_id in slots:
+        for room_id, slot_id in slots:
             room = next((r for r in rooms if r.id == room_id), None)
             if room:
-                node_id = f"{room.number}_{date_str}_{slot_id}"
+                node_id = f"{room.number}_{slot_id}"
                 G.add_edge(f"E{event_id}", node_id)
 
     # Получаем списки вершин
@@ -150,11 +128,10 @@ def visualize_bipartite_graph(graph, events, rooms, work_days, matching=None, ou
     # Если передано паросочетание, рисуем его рёбра красным цветом поверх
     if matching:
         matching_edges = []
-        for event_id, slot in matching.items():
-            room_id, date_str, slot_id = slot
+        for event_id, (room_id, slot_id) in matching.items():
             room = next((r for r in rooms if r.id == room_id), None)
             if room:
-                node_id = f"{room.number}_{date_str}_{slot_id}"
+                node_id = f"{room.number}_{slot_id}"
                 matching_edges.append((f"E{event_id}", node_id))
 
         nx.draw_networkx_edges(G, pos, edgelist=matching_edges, edge_color='red', alpha=1.0,
