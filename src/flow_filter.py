@@ -3,15 +3,16 @@
 import networkx as nx
 from matplotlib import pyplot as plt
 
-from src.graph_builder import get_all_slots
+from src.graph_builder import get_all_slots_for_day
 from typing import Dict, List, Tuple, Any
 from collections import defaultdict
 
 
 def build_flow_network(bipartite_graph: Dict[int, List[Tuple]], events: List[Any],
-                       rooms: List[Any], work_days: List[Any], groups: List[Any]) -> Tuple[Dict[int, Dict[int, float]], int, int]:
+                       rooms: List[Any], work_day: Any, groups: List[Any]) -> Tuple[Dict[int, Dict[int, float]], int, int]:
     """
     Превращает двудольный граф в транспортную сеть для алгоритма Диница.
+    Работает для ОДНОГО дня.
 
     Нумерация вершин:
         0 - источник (source)
@@ -19,16 +20,17 @@ def build_flow_network(bipartite_graph: Dict[int, List[Tuple]], events: List[Any
         |E|+1 .. |E|+|C*T| - слоты (slots)
         |E|+|C*T|+1 - сток (sink)
 
-    :param bipartite_graph: словарь {event_id: [(room_id, date_str, slot_id), ...]}
-    :param events: список событий
+    :param bipartite_graph: словарь {event_id: [(room_id, slot_id), ...]}
+                            (слоты уже без даты, так как день фиксирован)
+    :param events: список событий для ЭТОГО дня
     :param rooms: список аудиторий
-    :param work_days: список рабочих дней
+    :param work_day: рабочий день (один)
     :param groups: список групп (нужен для получения численности группы)
     :return: (граф, источник, сток)
              граф - словарь {u: {v: capacity}}
     """
-    # Получаем все слоты
-    all_slots = get_all_slots(rooms, work_days)
+    # Получаем все слоты для этого дня (room_id, slot_id)
+    all_slots = get_all_slots_for_day(rooms, work_day)
 
     # Создаём словари для быстрого доступа
     event_by_id = {e.id: e for e in events}
@@ -57,7 +59,7 @@ def build_flow_network(bipartite_graph: Dict[int, List[Tuple]], events: List[Any
 
     # Рёбра от слотов к стоку
     for i, slot in enumerate(all_slots, start=n_events + 1):
-        room_id, date_str, slot_id = slot
+        room_id, slot_id = slot
         room = room_by_id[room_id]
         graph[i][sink] = float(room.capacity)
 
@@ -71,9 +73,9 @@ def build_flow_network(bipartite_graph: Dict[int, List[Tuple]], events: List[Any
             continue
 
         for slot in slots:
-            room_id, date_str, slot_id = slot
+            room_id, slot_id = slot  # теперь слот без даты
             room = room_by_id[room_id]
-            slot_idx = n_events + 1 + slot_to_idx[slot]
+            slot_idx = n_events + 1 + slot_to_idx[(room_id, slot_id)]
 
             # Пропускная способность = min(численность группы, вместимость)
             capacity = min(float(group.size), float(room.capacity))
@@ -92,29 +94,24 @@ def max_flow_dinic(network: Dict[int, Dict[int, float]], source: int, sink: int)
             if cap > 0:  # Добавляем только положительные пропускные способности
                 G.add_edge(u, v, capacity=cap)
 
-    # Вариант 1: без указания flow_func (networkx выберет алгоритм сам)
     flow_value, flow_dict = nx.maximum_flow(G, source, sink)
-
-    # Вариант 2: явно указать алгоритм Диница
-    # flow_value, flow_dict = nx.maximum_flow(G, source, sink, flow_func=nx.algorithms.flow.dinic)
-
     return flow_value, flow_dict
 
 
 def filter_slots_by_flow(flow_distribution: Dict[int, Dict[int, float]],
-                         events: List[Any], rooms: List[Any], work_days: List[Any],
+                         events: List[Any], rooms: List[Any], work_day: Any,
                          threshold: float = 0.0) -> List[Tuple]:
     """
-    Фильтрует слоты на основе распределения потока.
+    Фильтрует слоты на основе распределения потока для ОДНОГО дня.
 
     :param flow_distribution: словарь {u: {v: flow}} после выполнения max_flow_dinic
-    :param events: список событий
+    :param events: список событий для этого дня
     :param rooms: список аудиторий
-    :param work_days: список рабочих дней
-    :param threshold: минимальная доля потока для сохранения слота
-    :return: отфильтрованный список слотов
+    :param work_day: рабочий день (один)
+    :param threshold: минимальный поток для сохранения слота
+    :return: отфильтрованный список слотов (room_id, slot_id)
     """
-    all_slots = get_all_slots(rooms, work_days)
+    all_slots = get_all_slots_for_day(rooms, work_day)
     n_events = len(events)
     slot_to_idx = {slot: i for i, slot in enumerate(all_slots)}
 
@@ -133,16 +130,17 @@ def filter_slots_by_flow(flow_distribution: Dict[int, Dict[int, float]],
 
 
 def visualize_flow_network(network: Dict[int, Dict[int, float]], source: int, sink: int,
-                           events: List[Any], all_slots: List[Tuple], flow_distribution: Dict[int, Dict[int, float]] = None,
+                           events: List[Any], all_slots: List[Tuple],
+                           flow_distribution: Dict[int, Dict[int, float]] = None,
                            output_path: str = "flow_network.png"):
     """
-    Визуализирует транспортную сеть.
+    Визуализирует транспортную сеть для ОДНОГО дня.
 
     :param network: словарь {u: {v: capacity}}
     :param source: источник
     :param sink: сток
     :param events: список событий (для подписей)
-    :param all_slots: список слотов (для подписей)
+    :param all_slots: список слотов (room_id, slot_id) для этого дня
     :param flow_distribution: распределение потока {u: {v: flow}} (опционально)
     :param output_path: путь для сохранения
     """
@@ -161,9 +159,9 @@ def visualize_flow_network(network: Dict[int, Dict[int, float]], source: int, si
 
     # Слоты
     for j, slot in enumerate(all_slots, start=n_events + 1):
-        room_id, date_str, slot_id = slot
+        room_id, slot_id = slot
         G.add_node(j)
-        labels[j] = f"{room_id}:{slot_id}"
+        labels[j] = f"каб.{room_id}:{slot_id}"
 
     # Сток
     G.add_node(sink)
@@ -201,20 +199,16 @@ def visualize_flow_network(network: Dict[int, Dict[int, float]], source: int, si
 
     # Рисуем рёбра
     if flow_distribution:
-        # Если есть распределение потока, рисуем рёбра по-разному в зависимости от потока
         for u, v, cap in G.edges(data='capacity'):
             flow = flow_distribution.get(u, {}).get(v, 0)
             if flow > 0:
-                # Рёбра с потоком — красные, толщина пропорциональна потоку
                 width = 1 + flow / max(1, cap) * 3
                 nx.draw_networkx_edges(G, pos, edgelist=[(u, v)], edge_color='red',
                     arrows=True, arrowsize=15, width=width)
             else:
-                # Рёбра без потока — серые
                 nx.draw_networkx_edges(G, pos, edgelist=[(u, v)], edge_color='gray',
                     arrows=True, arrowsize=15, width=1)
     else:
-        # Все рёбра серые
         nx.draw_networkx_edges(G, pos, edge_color='gray', arrows=True, arrowsize=15)
 
     # Подписи вершин
@@ -222,7 +216,6 @@ def visualize_flow_network(network: Dict[int, Dict[int, float]], source: int, si
 
     # Подписи рёбер
     if flow_distribution:
-        # Показываем поток / пропускную способность
         edge_labels = {}
         for u, v, cap in G.edges(data='capacity'):
             flow = flow_distribution.get(u, {}).get(v, 0)

@@ -6,27 +6,25 @@
 - filter_slots_by_flow() — фильтрация слотов по потоку
 """
 
-"""Тесты для модуля flow_filter.py.
-
-Проверяет построение транспортной сети, алгоритм Диница и фильтрацию слотов.
-"""
-
 import pytest
 import networkx as nx
 from datetime import date
 from src.data_models import Group, Room, Event, TimeSlot, WorkDay
-from src.graph_builder import build_bipartite_graph, get_all_slots
+from src.graph_builder import build_bipartite_graph, get_all_slots_for_day
 from src.flow_filter import build_flow_network, max_flow_dinic, filter_slots_by_flow, visualize_flow_network
 
 
 class TestBuildFlowNetwork:
     """Тесты для функции build_flow_network()."""
+
     def test_build_network_original(self, example_data_flow):
         """Проверяет построение исходной сети (оба ограничения)."""
+        work_day = example_data_flow["work_days"][0]  # берём первый день
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=True,
             check_equipment=True
@@ -36,7 +34,7 @@ class TestBuildFlowNetwork:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
@@ -44,7 +42,7 @@ class TestBuildFlowNetwork:
         assert isinstance(network, dict)
         assert source == 0
 
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
         n_events = len(example_data_flow["events"])
         n_slots = len(all_slots)
         expected_vertices = {0, n_events + n_slots + 1} | set(range(1, n_events + 1)) | set(
@@ -57,10 +55,12 @@ class TestBuildFlowNetwork:
 
     def test_build_network_without_features(self, example_data_flow):
         """Проверяет построение сети без ограничения оснащённости."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=True,
             check_equipment=False
@@ -70,22 +70,24 @@ class TestBuildFlowNetwork:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
         assert network is not None
 
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
         visualize_flow_network(network, source, sink, example_data_flow["events"], all_slots,
             output_path="flow_network_without_features.png")
 
     def test_build_network_without_capacity(self, example_data_flow):
         """Проверяет построение сети без ограничения вместимости."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=False,
             check_equipment=True
@@ -95,23 +97,25 @@ class TestBuildFlowNetwork:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
         assert network is not None
         assert source == 0
 
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
         visualize_flow_network(network, source, sink, example_data_flow["events"], all_slots,
             output_path="flow_network_without_capacity.png")
 
     def test_build_network_full(self, example_data_flow):
         """Проверяет построение полной сети (без обоих ограничений)."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=False,
             check_equipment=False
@@ -121,14 +125,14 @@ class TestBuildFlowNetwork:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
         assert network is not None
 
         n_events = len(example_data_flow["events"])
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
         n_slots = len(all_slots)
 
         for event_idx in range(1, n_events + 1):
@@ -136,14 +140,17 @@ class TestBuildFlowNetwork:
                             if n_events + 1 <= v <= n_events + n_slots])
             assert outgoing == n_slots
 
-        visualize_flow_network(network, source, sink, example_data_flow["events"], all_slots, output_path="flow_network_full.png")
+        visualize_flow_network(network, source, sink, example_data_flow["events"], all_slots,
+                              output_path="flow_network_full.png")
 
     def test_network_capacities_non_negative(self, example_data_flow):
         """Проверяет, что все пропускные способности >= 0."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=True,
             check_equipment=True
@@ -153,7 +160,7 @@ class TestBuildFlowNetwork:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
@@ -167,10 +174,12 @@ class TestMaxFlowDinic:
 
     def test_max_flow_simple(self, example_data_flow):
         """Проверяет вычисление максимального потока на графе из примера."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=True,
             check_equipment=True
@@ -180,13 +189,13 @@ class TestMaxFlowDinic:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
         flow_value, flow_dist = max_flow_dinic(network, source, sink)
 
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
         visualize_flow_network(
             network=network,
             source=source,
@@ -201,10 +210,12 @@ class TestMaxFlowDinic:
 
     def test_max_flow_without_capacity(self, example_data_flow):
         """Проверяет вычисление потока в сети без ограничения вместимости."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=False,
             check_equipment=True
@@ -214,13 +225,13 @@ class TestMaxFlowDinic:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
         flow_value, flow_dist = max_flow_dinic(network, source, sink)
 
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
         visualize_flow_network(
             network=network,
             source=source,
@@ -236,10 +247,12 @@ class TestMaxFlowDinic:
 
     def test_max_flow_without_features(self, example_data_flow):
         """Проверяет вычисление потока в сети без ограничения оснащённости."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=True,
             check_equipment=False
@@ -249,13 +262,13 @@ class TestMaxFlowDinic:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
         flow_value, flow_dist = max_flow_dinic(network, source, sink)
 
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
         visualize_flow_network(
             network=network,
             source=source,
@@ -270,10 +283,12 @@ class TestMaxFlowDinic:
 
     def test_max_flow_full(self, example_data_flow):
         """Проверяет вычисление потока в полносвязной сети."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=False,
             check_equipment=False
@@ -283,13 +298,13 @@ class TestMaxFlowDinic:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
         flow_value, flow_dist = max_flow_dinic(network, source, sink)
 
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
         visualize_flow_network(
             network=network,
             source=source,
@@ -305,10 +320,12 @@ class TestMaxFlowDinic:
 
     def test_max_flow_integer_result(self, example_data_flow):
         """Проверяет, что результат — целое число."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=True,
             check_equipment=True
@@ -318,7 +335,7 @@ class TestMaxFlowDinic:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
@@ -333,10 +350,12 @@ class TestFilterSlotsByFlow:
 
     def test_filter_slots_success(self, example_data_flow):
         """Проверяет, что слоты без потока отфильтровываются."""
+        work_day = example_data_flow["work_days"][0]
+
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=True,
             check_equipment=True
@@ -346,19 +365,19 @@ class TestFilterSlotsByFlow:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
         flow_value, flow_dist = max_flow_dinic(network, source, sink)
 
-        all_slots = get_all_slots(example_data_flow["rooms"], example_data_flow["work_days"])
+        all_slots = get_all_slots_for_day(example_data_flow["rooms"], work_day)
 
         active_slots = filter_slots_by_flow(
             flow_distribution=flow_dist,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             threshold=0.0
         )
 
@@ -370,6 +389,8 @@ class TestFilterSlotsByFlow:
 
     def test_filter_slots_no_flow(self, example_data_flow):
         """Проверяет поведение, когда ни один слот не имеет потока."""
+        work_day = example_data_flow["work_days"][0]
+
         # Создаём событие, которое не может быть назначено ни в один слот
         impossible_event = Event(
             id=99,
@@ -377,14 +398,15 @@ class TestFilterSlotsByFlow:
             group_id=example_data_flow["groups"][0].id,
             teacher_id=1,
             total_hours=1,
-            required_features=["несуществующее_оборудование"]
+            required_features=["несуществующее_оборудование"],
+            date=None
         )
         events = [impossible_event]
 
         bipartite_graph = build_bipartite_graph(
             events=events,
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=True,
             check_equipment=True
@@ -394,7 +416,7 @@ class TestFilterSlotsByFlow:
             bipartite_graph=bipartite_graph,
             events=events,
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
@@ -404,7 +426,7 @@ class TestFilterSlotsByFlow:
             flow_distribution=flow_dist,
             events=events,
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             threshold=0.0
         )
 
@@ -414,11 +436,13 @@ class TestFilterSlotsByFlow:
 
     def test_filter_slots_all_flow(self, example_data_flow):
         """Проверяет поведение, когда все слоты имеют поток."""
+        work_day = example_data_flow["work_days"][0]
+
         # Строим полносвязный граф
         bipartite_graph = build_bipartite_graph(
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"],
             check_capacity=False,
             check_equipment=False
@@ -428,7 +452,7 @@ class TestFilterSlotsByFlow:
             bipartite_graph=bipartite_graph,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             groups=example_data_flow["groups"]
         )
 
@@ -438,7 +462,7 @@ class TestFilterSlotsByFlow:
             flow_distribution=flow_dist,
             events=example_data_flow["events"],
             rooms=example_data_flow["rooms"],
-            work_days=example_data_flow["work_days"],
+            work_day=work_day,
             threshold=0.0
         )
 
