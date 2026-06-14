@@ -10,7 +10,7 @@ from src.data_loader import load_all
 from src.criteria import criterion_one, criterion_two, criterion_three, criterion_four
 from src.matching import max_bipartite_matching, is_perfect
 from src.assignment import build_cost_matrix, solve_assignment, print_assignment_details
-from src.graph_builder import build_bipartite_graph, get_all_slots
+from src.graph_builder import build_bipartite_graph, get_all_slots_for_day
 from src.flow_filter import build_flow_network, max_flow_dinic, filter_slots_by_flow
 from src.output import print_schedule, write_schedule_to_csv
 
@@ -34,41 +34,12 @@ def get_user_choice(prompt: str, options: List[str]) -> str:
             print("Введите число")
 
 
-def show_criterion_one_result(events, rooms, work_days) -> bool:
-    """Проверяет первый критерий и выводит результат."""
-    print("\n" + "=" * 60)
-    print("ПРОВЕРКА ПЕРВОГО КРИТЕРИЯ")
-    print("=" * 60)
-
-    num_events = len(events)
-    num_rooms = len(rooms)
-    num_slots = sum(len(day.available_slots) for day in work_days)
-    total_slots = num_rooms * num_slots
-
-    print(f"|E| = {num_events}")
-    print(f"|C|·|T| = {num_rooms} × {num_slots} = {total_slots}")
-
-    if num_events <= total_slots:
-        print("✅ Критерий выполнен. Есть смысл в дальнейшем анализе.")
-        return True
-    else:
-        diff = num_events - total_slots
-        print(f"❌ Критерий НЕ выполнен! Превышение: {diff} слотов.")
-        print("\nРекомендации:")
-        print(f"  1. Убрать как минимум {diff} событий")
-        print(f"  2. Добавить аудиторий: примерно {diff // num_slots + 1}")
-        print(f"  3. Добавить временных слотов: примерно {diff // num_rooms + 1}")
-        return False
-
-
-def export_students_schedule(assignment: Dict[int, Tuple], events: List, groups: List,
+def export_students_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
+                              events: List, groups: List,
                               work_days: List, time_slots: List, output_path: Path):
     """
     Экспортирует расписание для студентов.
-    Формат: для каждой группы отдельная таблица:
-        - первая строка: номер группы
-        - вторая строка: даты
-        - строки 3-9: номера пар (1-7) и события
+    all_assignments: {date_str: {event_id: (room_id, slot_id)}}
     """
     event_by_id = {e.id: e for e in events}
     group_by_id = {g.id: g for g in groups}
@@ -76,12 +47,13 @@ def export_students_schedule(assignment: Dict[int, Tuple], events: List, groups:
 
     schedule = defaultdict(lambda: defaultdict(dict))
 
-    for event_id, (room_id, date_str, slot_id) in assignment.items():
-        event = event_by_id[event_id]
-        group_id = event.group_id
-        slot = slot_by_id.get(slot_id)
-        if slot:
-            schedule[group_id][date_str][slot.number] = event.name
+    for date_str, day_assignment in all_assignments.items():
+        for event_id, (room_id, slot_id) in day_assignment.items():
+            event = event_by_id[event_id]
+            group_id = event.group_id
+            slot = slot_by_id.get(slot_id)
+            if slot:
+                schedule[group_id][date_str][slot.number] = event.name
 
     all_dates = [day.date.isoformat() for day in work_days
                  if day.day_type == "учебный" and not day.is_holiday]
@@ -114,14 +86,12 @@ def export_students_schedule(assignment: Dict[int, Tuple], events: List, groups:
     print(f"   Расписание для студентов сохранено в {output_file}")
 
 
-def export_teachers_schedule(assignment: Dict[int, Tuple], events: List, teachers: List,
+def export_teachers_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
+                              events: List, teachers: List,
                               work_days: List, time_slots: List, output_path: Path):
     """
     Экспортирует расписание для преподавателей.
-    Формат: для каждого преподавателя отдельная таблица:
-        - первая строка: ФИО преподавателя
-        - вторая строка: даты
-        - строки 3-9: номера пар (1-7) и события
+    all_assignments: {date_str: {event_id: (room_id, slot_id)}}
     """
     event_by_id = {e.id: e for e in events}
     teacher_by_id = {t.id: t for t in teachers}
@@ -129,13 +99,14 @@ def export_teachers_schedule(assignment: Dict[int, Tuple], events: List, teacher
 
     schedule = defaultdict(lambda: defaultdict(dict))
 
-    for event_id, (room_id, date_str, slot_id) in assignment.items():
-        event = event_by_id[event_id]
-        teacher_id = event.teacher_id
-        if teacher_id:
-            slot = slot_by_id.get(slot_id)
-            if slot:
-                schedule[teacher_id][date_str][slot.number] = event.name
+    for date_str, day_assignment in all_assignments.items():
+        for event_id, (room_id, slot_id) in day_assignment.items():
+            event = event_by_id[event_id]
+            teacher_id = event.teacher_id
+            if teacher_id:
+                slot = slot_by_id.get(slot_id)
+                if slot:
+                    schedule[teacher_id][date_str][slot.number] = event.name
 
     all_dates = [day.date.isoformat() for day in work_days
                  if day.day_type == "учебный" and not day.is_holiday]
@@ -168,6 +139,105 @@ def export_teachers_schedule(assignment: Dict[int, Tuple], events: List, teacher
     print(f"   Расписание для преподавателей сохранено в {output_file}")
 
 
+def build_schedule_for_day(events: List, rooms: List, work_day, groups: List,
+                           teachers: List, time_slots: List, verbose: bool = False) -> Tuple[bool, Dict]:
+    """
+    Строит расписание для одного дня.
+    Возвращает (успех, assignment).
+    """
+    # Построение двудольного графа для этого дня
+    graph = build_bipartite_graph(
+        events=events,
+        rooms=rooms,
+        work_day=work_day,
+        groups=groups,
+        check_capacity=True,
+        check_equipment=True
+    )
+
+    if verbose:
+        print(f"   Граф построен. Рёбер: {sum(len(v) for v in graph.values())}")
+
+    # Проверка второго критерия (изолированные события)
+    success_two, isolated_ids = criterion_two(graph, events, rooms, groups)
+    if not success_two:
+        if verbose:
+            print(f"   ⚠️ Второй критерий не выполнен: изолированные события {isolated_ids}")
+        return False, {}
+
+    # Проверка третьего критерия (совершенное паросочетание)
+    perfect, matching = criterion_three(graph, events)
+
+    if not perfect:
+        if verbose:
+            print(f"   ❌ Совершенное паросочетание не найдено")
+        return False, {}
+
+    # Проверка четвёртого критерия (мнимые расписания)
+    if not criterion_four(matching, events):
+        if verbose:
+            print(f"   ⚠️ Обнаружены мнимые конфликты")
+        # Пытаемся решить задачу о назначениях
+        all_slots = get_all_slots_for_day(rooms, work_day)
+        cost_matrix = build_cost_matrix(events, all_slots, groups, rooms)
+        assignment = solve_assignment(cost_matrix, events, all_slots)
+        if assignment and criterion_four(assignment, events):
+            if verbose:
+                print(f"   ✅ Задача о назначениях успешно решена")
+            return True, assignment
+        else:
+            if verbose:
+                print(f"   ❌ Не удалось устранить мнимые конфликты")
+            return False, {}
+    else:
+        if verbose:
+            print(f"   ✅ Расписание найдено (без мнимых конфликтов)")
+        return True, matching
+
+
+def run_strategic_diagnostic(events: List, rooms: List, work_day, groups: List):
+    """Запускает стратегическую диагностику для одного дня."""
+    print(f"\n   Диагностика для дня {work_day.date.isoformat()}:")
+
+    modifications = [
+        ("Исходная сеть", True, True),
+        ("Без вместимости", False, True),
+        ("Без оснащённости", True, False),
+        ("Без обоих ограничений", False, False),
+    ]
+
+    flow_results = {}
+    for name, check_cap, check_eq in modifications:
+        graph = build_bipartite_graph(events, rooms, work_day, groups,
+                                      check_capacity=check_cap, check_equipment=check_eq)
+        network, source, sink = build_flow_network(graph, events, rooms, work_day, groups)
+        flow_value, _ = max_flow_dinic(network, source, sink)
+        flow_results[name] = flow_value
+
+    base = flow_results.get("Исходная сеть", 0)
+    no_cap = flow_results.get("Без вместимости", 0)
+    no_eq = flow_results.get("Без оснащённости", 0)
+
+    print(f"\n   Результаты диагностики для {work_day.date.isoformat()}:")
+    print(f"      Исходная сеть: {base}")
+    print(f"      Без вместимости: {no_cap}")
+    print(f"      Без оснащённости: {no_eq}")
+
+    if no_cap > base and no_eq == base:
+        print("   📊 Вывод: Критическим фактором является НЕДОСТАТОЧНАЯ ВМЕСТИМОСТЬ")
+        print("      Рекомендуется увеличить вместимость аудиторий или добавить новые")
+    elif no_eq > base and no_cap == base:
+        print("   📊 Вывод: Критическим фактором является НЕДОСТАТОЧНОЕ ОСНАЩЕНИЕ")
+        print("      Рекомендуется дооснастить аудитории недостающим оборудованием")
+    elif no_cap > base and no_eq > base:
+        print("   📊 Вывод: Комбинированная проблема (вместимость и оснащённость)")
+    else:
+        print("   📊 Вывод: Проблема в глобальном дефиците слотов")
+        print("      Рекомендуется увеличить количество аудиторий или временных интервалов")
+
+    print(f"   Потенциальный выигрыш от снятия ограничений: {no_cap - base}")
+
+
 def main():
     """Координирует выполнение всех этапов алгоритма."""
     print("=" * 70)
@@ -180,7 +250,6 @@ def main():
         data = load_all()
         groups = data["groups"]
         events = data["events"]
-        events_template = data["events_template"]
         rooms = data["rooms"]
         teachers = data["teachers"]
         time_slots = data["time_slots"]
@@ -192,132 +261,105 @@ def main():
         print(f"❌ Ошибка загрузки данных: {e}")
         return
 
-    # Шаг 2: Проверка первого критерия
-    if not criterion_one(events, rooms, work_days):
-        choice = get_user_choice("Первый критерий не выполнен. Что делать?",
-                                ["Завершить работу", "Продолжить анализ (диагностика)"])
-        if choice == "Завершить работу":
-            return
+    # Группируем события по датам
+    events_by_date = defaultdict(list)
+    for event in events:
+        if event.date:
+            events_by_date[event.date].append(event)
+        else:
+            print(f"⚠️ Событие {event.id} ({event.name}) не имеет даты и будет пропущено")
 
-    # Шаг 3: Построение двудольного графа
-    print("\n[2] Построение двудольного графа...")
-    bipartite_graph = build_bipartite_graph(
-        events=events,
-        rooms=rooms,
-        work_days=work_days,
-        groups=groups,
-        check_capacity=True,
-        check_equipment=True
-    )
-    print(f"   Граф построен. Всего рёбер: {sum(len(v) for v in bipartite_graph.values())}")
+    if not events_by_date:
+        print("❌ Нет событий с указанной датой")
+        return
 
-    # Шаг 4: Проверка второго критерия
-    print("\n[3] Проверка второго критерия...")
-    success_two, isolated_ids = criterion_two(bipartite_graph, events, rooms, groups)
-    if not success_two:
-        choice = get_user_choice("Второй критерий не выполнен. Что делать?",
-                                ["Продолжить с существующими событиями", "Завершить работу"])
-        if choice == "Завершить работу":
-            return
+    print(f"\n[2] Распределение событий по дням:")
+    for date_str, day_events in sorted(events_by_date.items()):
+        print(f"   {date_str}: {len(day_events)} событий")
 
-    # Шаг 5: Проверка третьего критерия (поиск совершенного паросочетания)
-    print("\n[4] Поиск совершенного паросочетания...")
-    perfect, matching = criterion_three(bipartite_graph, events)
+    # Словарь для хранения расписаний по дням
+    all_assignments = {}
+    problematic_days = []
 
-    if perfect:
-        print("✅ Найдено совершенное паросочетание!")
+    # Перебираем все рабочие дни
+    for work_day in work_days:
+        if work_day.is_holiday or work_day.day_type != "учебный":
+            continue  # пропускаем выходные и праздники
 
-        # Преобразуем matching в прямой формат (уже в criterion_three это сделано)
-        direct_matching = matching
+        date_str = work_day.date.isoformat()
+        day_events = events_by_date.get(date_str, [])
 
-        # Шаг 6: Проверка четвёртого критерия (мнимые расписания)
-        print("\n[5] Проверка на мнимые расписания...")
-        if not criterion_four(direct_matching, events):
-            print("⚠️ Обнаружены мнимые конфликты (одна группа в одно время в разных аудиториях)")
-            choice = get_user_choice("Что делать?",
-                                    ["Решить задачу о назначениях (оптимизация)",
-                                     "Принять расписание как есть",
-                                     "Завершить работу"])
+        if not day_events:
+            continue  # в этот день нет событий
+
+        print(f"\n[3] Обработка дня {date_str} ({len(day_events)} событий)...")
+
+        # Пытаемся построить расписание для этого дня (тихо)
+        success, assignment = build_schedule_for_day(
+            events=day_events,
+            rooms=rooms,
+            work_day=work_day,
+            groups=groups,
+            teachers=teachers,
+            time_slots=time_slots,
+            verbose=False
+        )
+
+        if success:
+            all_assignments[date_str] = assignment
+            print(f"   ✅ Расписание для {date_str} успешно построено")
+        else:
+            problematic_days.append((work_day, day_events))
+            print(f"   ❌ Не удалось построить расписание для {date_str}")
+
+    # Если есть проблемные дни, запускаем интерактивную диагностику
+    if problematic_days:
+        print("\n" + "=" * 70)
+        print("ОБНАРУЖЕНЫ ПРОБЛЕМНЫЕ ДНИ")
+        print("=" * 70)
+
+        for work_day, day_events in problematic_days:
+            date_str = work_day.date.isoformat()
+            print(f"\nДень: {date_str} (событий: {len(day_events)})")
+
+            choice = get_user_choice(
+                f"Что делать с днём {date_str}?",
+                ["Пропустить день", "Показать диагностику", "Завершить работу"]
+            )
+
             if choice == "Завершить работу":
                 return
-            elif choice == "Решить задачу о назначениях (оптимизация)":
-                all_slots = get_all_slots(rooms, work_days)
-                cost_matrix = build_cost_matrix(events, all_slots, groups, rooms)
-                assignment = solve_assignment(cost_matrix, events, all_slots)
-                if not criterion_four(assignment, events):
-                    print("ВСЁ РАВНО НЕ ВЫПОЛНЯЕТСЯ 4 КРИТЕРИЙ")
-                # print_assignment_details(assignment, cost_matrix, events, all_slots, groups, rooms)
+            elif choice == "Показать диагностику":
+                run_strategic_diagnostic(day_events, rooms, work_day, groups)
 
-                # Экспорт расписаний
-                export_students_schedule(assignment, events, groups, work_days, time_slots, OUTPUT_DIR)
-                export_teachers_schedule(assignment, events, teachers, work_days, time_slots, OUTPUT_DIR)
-                print("   Расписания сохранены в data/output/")
-            else:
-                # Принять расписание как есть
-                assignment = direct_matching
-                export_students_schedule(assignment, events, groups, work_days, time_slots, OUTPUT_DIR)
-                export_teachers_schedule(assignment, events, teachers, work_days, time_slots, OUTPUT_DIR)
-                print("   Расписания сохранены в data/output/")
-        else:
-            print("✅ Мнимых конфликтов нет")
-            assignment = direct_matching
+                # После диагностики предлагаем ещё раз попробовать построить расписание
+                retry_choice = get_user_choice(
+                    "Попробовать построить расписание снова?",
+                    ["Да, попробовать", "Нет, пропустить день"]
+                )
+                if retry_choice == "Да, попробовать":
+                    success, assignment = build_schedule_for_day(
+                        events=day_events,
+                        rooms=rooms,
+                        work_day=work_day,
+                        groups=groups,
+                        teachers=teachers,
+                        time_slots=time_slots,
+                        verbose=True  # теперь показываем подробности
+                    )
+                    if success:
+                        all_assignments[date_str] = assignment
+                        print(f"   ✅ Расписание для {date_str} успешно построено")
+            # Если "Пропустить день" — просто идём дальше
 
-            # Экспорт расписаний
-            export_students_schedule(assignment, events, groups, work_days, time_slots, OUTPUT_DIR)
-            export_teachers_schedule(assignment, events, teachers, work_days, time_slots, OUTPUT_DIR)
-            print("   Расписания сохранены в data/output/")
-
-            # Запрос на дополнительный анализ
-            if get_user_choice("Хотите провести дополнительный стратегический анализ?",
-                              ["Да", "Нет"]) == "Да":
-                perfect = False
-            else:
-                print("\n✅ Работа завершена. Расписание готово!")
-                return
+    # Экспорт всех успешно построенных расписаний
+    if all_assignments:
+        print("\n[4] Экспорт расписаний...")
+        export_students_schedule(all_assignments, events, groups, work_days, time_slots, OUTPUT_DIR)
+        export_teachers_schedule(all_assignments, events, teachers, work_days, time_slots, OUTPUT_DIR)
+        print(f"\n✅ Сохранено расписаний для {len(all_assignments)} дней")
     else:
-        print("❌ Совершенное паросочетание не найдено")
-
-    # Шаг 7: Диагностика (если паросочетание не найдено или запрошен анализ)
-    if not perfect:
-        print("\n[6] Запуск стратегической диагностики (потоковая модель)...")
-
-        modifications = [
-            ("Исходная сеть", True, True),
-            ("Без вместимости", False, True),
-            ("Без оснащённости", True, False),
-            ("Без обоих ограничений", False, False),
-        ]
-
-        flow_results = {}
-        for name, check_cap, check_eq in modifications:
-            print(f"\n   Построение {name}...")
-            graph = build_bipartite_graph(events, rooms, work_days, groups,
-                                          check_capacity=check_cap, check_equipment=check_eq)
-            network, source, sink = build_flow_network(graph, events, rooms, work_days, groups)
-            flow_value, flow_dist = max_flow_dinic(network, source, sink)
-            flow_results[name] = flow_value
-            print(f"      Максимальный поток: {flow_value}")
-
-        print("\n" + "=" * 60)
-        print("РЕЗУЛЬТАТЫ СТРАТЕГИЧЕСКОГО АНАЛИЗА")
-        print("=" * 60)
-        base = flow_results.get("Исходная сеть", 0)
-        no_cap = flow_results.get("Без вместимости", 0)
-        no_eq = flow_results.get("Без оснащённости", 0)
-
-        if no_cap > base and no_eq == base:
-            print("📊 Вывод: Критическим фактором является НЕДОСТАТОЧНАЯ ВМЕСТИМОСТЬ")
-            print("   Рекомендуется увеличить вместимость аудиторий или добавить новые")
-        elif no_eq > base and no_cap == base:
-            print("📊 Вывод: Критическим фактором является НЕДОСТАТОЧНОЕ ОСНАЩЕНИЕ")
-            print("   Рекомендуется дооснастить аудитории недостающим оборудованием")
-        elif no_cap > base and no_eq > base:
-            print("📊 Вывод: Комбинированная проблема (вместимость и оснащённость)")
-        else:
-            print("📊 Вывод: Проблема в глобальном дефиците слотов")
-            print("   Рекомендуется увеличить количество аудиторий или временных интервалов")
-
-        print(f"\nПотенциальный выигрыш от снятия ограничений: {no_cap - base}")
+        print("\n❌ Не удалось построить расписание ни для одного дня")
 
     print("\n" + "=" * 70)
     print("  РАБОТА ЗАВЕРШЕНА")

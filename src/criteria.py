@@ -4,22 +4,19 @@ from typing import Tuple, List, Dict, Any
 from collections import defaultdict
 
 
-def criterion_one(events: List[Any], rooms: List[Any], work_days: List[Any]) -> bool:
+def criterion_one(events: List[Any], rooms: List[Any], work_day: Any) -> bool:
     """
-    Проверяет первый критерий |E| <= |C|·|T|.
+    Проверяет первый критерий |E| <= |C|·|T| для ОДНОГО дня.
     При нарушении выводит количественные рекомендации.
 
     :param events: список событий
     :param rooms: список аудиторий
-    :param work_days: список рабочих дней (для определения |T|)
+    :param work_day: рабочий день (один)
     :return: True если критерий выполнен, False если нарушен
     """
     num_events = len(events)
     num_rooms = len(rooms)
-
-    # Вычисляем общее количество временных слотов |T|
-    # Суммируем количество слотов по всем рабочим дням
-    num_slots = sum(len(day.available_slots) for day in work_days)
+    num_slots = len(work_day.available_slots)
 
     total_slots = num_rooms * num_slots
 
@@ -30,7 +27,7 @@ def criterion_one(events: List[Any], rooms: List[Any], work_days: List[Any]) -> 
     diff = num_events - total_slots
 
     print(f"\n{'='*60}")
-    print(f"ПЕРВЫЙ КРИТЕРИЙ НАРУШЕН")
+    print(f"ПЕРВЫЙ КРИТЕРИЙ НАРУШЕН (день {work_day.date.isoformat()})")
     print(f"{'='*60}")
     print(f"|E| = {num_events} событий")
     print(f"|C|·|T| = {num_rooms} × {num_slots} = {total_slots} слотов")
@@ -51,11 +48,11 @@ def criterion_one(events: List[Any], rooms: List[Any], work_days: List[Any]) -> 
 def criterion_two(graph: Dict[int, List[Any]], events: List[Any], rooms: List[Any], groups: List[Any]) -> Tuple[
     bool, List[int]]:
     """
-    Проверяет наличие изолированных событий.
+    Проверяет наличие изолированных событий для ОДНОГО дня.
     Возвращает (успех, список id изолированных событий).
     При наличии изолированных строит таблицу причин конфликтов.
 
-    :param graph: словарь смежности {event_id: [(room_id, date, slot_id), ...]}
+    :param graph: словарь смежности {event_id: [(room_id, slot_id), ...]}
     :param events: список событий
     :param rooms: список аудиторий
     :param groups: список групп
@@ -93,7 +90,7 @@ def criterion_two(graph: Dict[int, List[Any]], events: List[Any], rooms: List[An
             continue
 
         event_features = ', '.join(event.required_features) if event.required_features else "нет"
-        group_name = repr(group)  # используем __repr__ для названия группы
+        group_name = repr(group)
         group_size = group.size
 
         for room in rooms:
@@ -101,7 +98,6 @@ def criterion_two(graph: Dict[int, List[Any]], events: List[Any], rooms: List[An
             equipment_ok = set(event.required_features).issubset(set(room.equipment))
 
             # Если оба условия выполнены, ребро должно было быть в графе
-            # Это означает, что проблема не в ограничениях, а в отсутствии временных слотов
             if capacity_ok and equipment_ok:
                 continue
 
@@ -127,17 +123,14 @@ def criterion_two(graph: Dict[int, List[Any]], events: List[Any], rooms: List[An
     return False, [event.id for event in isolated_events]
 
 
-def criterion_three(graph: Dict[int, List[Tuple[int, str, int]]], events: List[Any]) -> Tuple[
-    bool, Dict[int, Tuple[int, str, int]]]:
+def criterion_three(graph: Dict[int, List[Tuple[int, int]]], events: List[Any]) -> Tuple[
+    bool, Dict[int, Tuple[int, int]]]:
     """
-    Проверяет третий критерий — существование совершенного паросочетания.
-    Возвращает (успех, словарь сопоставлений event_id -> (room_id, date_str, slot_id)).
+    Проверяет третий критерий — существование совершенного паросочетания для ОДНОГО дня.
+    Возвращает (успех, словарь сопоставлений event_id -> (room_id, slot_id)).
 
-    :param graph: словарь смежности {event_id: [(room_id, date_str, slot_id), ...]}
+    :param graph: словарь смежности {event_id: [(room_id, slot_id), ...]}
     :param events: список событий
-    :param rooms: список аудиторий (не используется напрямую, но может понадобиться для отладки)
-    :param groups: список групп (не используется напрямую)
-    :param work_days: список рабочих дней (не используется напрямую)
     :return: (True, matching) если паросочетание совершенное, (False, {}) если нет
     """
     from src.matching import max_bipartite_matching, is_perfect
@@ -157,8 +150,7 @@ def criterion_three(graph: Dict[int, List[Tuple[int, str, int]]], events: List[A
 
     # Проверяем, является ли паросочетание совершенным
     if is_perfect(matching, len(events)):
-        # Преобразуем matching в удобный формат
-        # matching хранит {slot_key: event_id}, нам нужно {event_id: slot_key}
+        # Преобразуем matching в удобный формат {event_id: (room_id, slot_id)}
         result_matching = {}
         for slot_key, event_id in matching.items():
             result_matching[event_id] = slot_key
@@ -167,27 +159,28 @@ def criterion_three(graph: Dict[int, List[Tuple[int, str, int]]], events: List[A
     return False, {}
 
 
-def criterion_four(assignment: Dict[int, Tuple[int, str, int]], events: List[Any]) -> bool:
+def criterion_four(assignment: Dict[int, Tuple[int, int]], events: List[Any]) -> bool:
     """
-    Проверяет четвёртый критерий — отсутствие накладок у группы (мнимых расписаний).
+    Проверяет четвёртый критерий — отсутствие накладок у группы (мнимых расписаний)
+    для ОДНОГО дня.
 
-    :param assignment: словарь {event_id: (room_id, date_str, slot_id)}
+    :param assignment: словарь {event_id: (room_id, slot_id)}
     :param events: список событий
     :return: True если нет мнимых конфликтов, False если есть
     """
     event_by_id = {e.id: e for e in events}
 
-    # Группируем назначения по группе, дате и временному слоту
-    # Если для одной группы в одну дату и один слот попадает больше одного события — конфликт
+    # Группируем назначения по группе и временному слоту
+    # Если для одной группы в один слот попадает больше одного события — конфликт
     group_slots = {}
 
-    for event_id, (room_id, date_str, slot_id) in assignment.items():
+    for event_id, (room_id, slot_id) in assignment.items():
         event = event_by_id.get(event_id)
         if event is None:
             continue
         group_id = event.group_id
 
-        key = (group_id, date_str, slot_id)
+        key = (group_id, slot_id)
         if key in group_slots:
             # Уже есть событие для этой группы в это время → мнимое расписание
             return False
