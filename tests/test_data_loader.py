@@ -180,6 +180,8 @@ class TestLoadRequirements:
         assert events[0].group_id is not None
         assert events[0].total_hours > 0
         assert isinstance(events[0].required_features, list)
+        assert events[0].date is not None  # проверяем, что дата загружена
+        assert isinstance(events[0].date, str)  # дата должна быть строкой
 
     def test_load_requirements_total_pairs_range(self):
         """Проверяет, что total_pairs в диапазоне 1-4."""
@@ -221,6 +223,27 @@ class TestLoadRequirements:
             for req in event.required_features:
                 assert isinstance(req, str)
                 assert req in ["доска", "проектор", "компьютеры"] or "доска" in req
+
+    def test_load_requirements_date_format(self):
+        """Проверяет, что дата имеет правильный формат YYYY-MM-DD."""
+        groups = load_groups()
+        events_template = load_events()
+        events = load_requirements(groups, events_template)
+
+        import re
+        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+        for event in events:
+            assert date_pattern.match(event.date), f"Событие {event.id}: дата '{event.date}' не в формате YYYY-MM-DD"
+
+    def test_load_requirements_all_events_have_date(self):
+        """Проверяет, что все загруженные события имеют дату."""
+        groups = load_groups()
+        events_template = load_events()
+        events = load_requirements(groups, events_template)
+
+        for event in events:
+            assert event.date is not None, f"Событие {event.id} не имеет даты"
+            assert event.date != "", f"Событие {event.id} имеет пустую дату"
 
 
 class TestLoadAll:

@@ -152,6 +152,7 @@ def load_requirements(groups: List[Group], events: List[Event]) -> List[Event]:
     with open(INPUT_DIR / "requirements.csv", "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            date_str = row["date"]  # читаем дату
             group_id = int(row["group_id"])
             event_template_id = int(row["event_id"])
             total_pairs = int(row["total_pairs"])
@@ -166,14 +167,15 @@ def load_requirements(groups: List[Group], events: List[Event]) -> List[Event]:
             # required_features из строки "доска, компьютеры" в список
             required_features = [f.strip() for f in required_features_str.split(",")]
 
-            # Создаём событие
+            # Создаём событие с датой
             event = Event(
                 id=event_id,
                 name=event_template.name,
                 group_id=group.id,
                 teacher_id=None,  # пока не назначен
                 total_hours=total_pairs,
-                required_features=required_features
+                required_features=required_features,
+                date=date_str  # добавляем дату
             )
             result_events.append(event)
             event_id += 1
