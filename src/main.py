@@ -35,7 +35,7 @@ def get_user_choice(prompt: str, options: List[str]) -> str:
 
 
 def export_students_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
-                              events: List, groups: List,
+                              events: List, groups: List, rooms: List,
                               work_days: List, time_slots: List, output_path: Path):
     """
     Экспортирует расписание для студентов.
@@ -43,6 +43,7 @@ def export_students_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
     """
     event_by_id = {e.id: e for e in events}
     group_by_id = {g.id: g for g in groups}
+    room_by_id = {r.id: r for r in rooms}
     slot_by_id = {s.id: s for s in time_slots}
 
     schedule = defaultdict(lambda: defaultdict(dict))
@@ -51,9 +52,12 @@ def export_students_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
         for event_id, (room_id, slot_id) in day_assignment.items():
             event = event_by_id[event_id]
             group_id = event.group_id
+            room = room_by_id.get(room_id)
             slot = slot_by_id.get(slot_id)
-            if slot:
-                schedule[group_id][date_str][slot.number] = event.name
+            if slot and room:
+                # Формат: "Название события (каб.XXX)"
+                event_with_room = f"{event.name} (каб.{room.number})"
+                schedule[group_id][date_str][slot.number] = event_with_room
 
     all_dates = [day.date.isoformat() for day in work_days
                  if day.day_type == "учебный" and not day.is_holiday]
@@ -87,7 +91,7 @@ def export_students_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
 
 
 def export_teachers_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
-                              events: List, teachers: List,
+                              events: List, teachers: List, rooms: List,
                               work_days: List, time_slots: List, output_path: Path):
     """
     Экспортирует расписание для преподавателей.
@@ -95,6 +99,7 @@ def export_teachers_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
     """
     event_by_id = {e.id: e for e in events}
     teacher_by_id = {t.id: t for t in teachers}
+    room_by_id = {r.id: r for r in rooms}
     slot_by_id = {s.id: s for s in time_slots}
 
     schedule = defaultdict(lambda: defaultdict(dict))
@@ -103,10 +108,11 @@ def export_teachers_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
         for event_id, (room_id, slot_id) in day_assignment.items():
             event = event_by_id[event_id]
             teacher_id = event.teacher_id
-            if teacher_id:
-                slot = slot_by_id.get(slot_id)
-                if slot:
-                    schedule[teacher_id][date_str][slot.number] = event.name
+            room = room_by_id.get(room_id)
+            slot = slot_by_id.get(slot_id)
+            if teacher_id and slot and room:
+                event_with_room = f"{event.name} (каб.{room.number})"
+                schedule[teacher_id][date_str][slot.number] = event_with_room
 
     all_dates = [day.date.isoformat() for day in work_days
                  if day.day_type == "учебный" and not day.is_holiday]
@@ -355,8 +361,8 @@ def main():
     # Экспорт всех успешно построенных расписаний
     if all_assignments:
         print("\n[4] Экспорт расписаний...")
-        export_students_schedule(all_assignments, events, groups, work_days, time_slots, OUTPUT_DIR)
-        export_teachers_schedule(all_assignments, events, teachers, work_days, time_slots, OUTPUT_DIR)
+        export_students_schedule(all_assignments, events, groups, rooms, work_days, time_slots, OUTPUT_DIR)
+        export_teachers_schedule(all_assignments, events, teachers, rooms, work_days, time_slots, OUTPUT_DIR)
         print(f"\n✅ Сохранено расписаний для {len(all_assignments)} дней")
     else:
         print("\n❌ Не удалось построить расписание ни для одного дня")
