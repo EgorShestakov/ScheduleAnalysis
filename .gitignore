@@ -5,3 +5,4 @@ Scripts
 pyvenv.cfg
 src/__pycache__/
 tests/__pycache__/
+tests/.pytest_cache
