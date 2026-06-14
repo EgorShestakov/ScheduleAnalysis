@@ -60,24 +60,6 @@ def event_flow_3(group_small, teacher_3):
 
 
 @pytest.fixture
-def events_list(event, event_2, event_3):
-    """Возвращает список всех тестовых событий."""
-    return [event, event_2, event_3]
-
-
-@pytest.fixture
-def events_list(event, event_2, event_3):
-    """Возвращает список всех тестовых событий."""
-    return [event, event_2, event_3]
-
-
-@pytest.fixture
-def events_flow_list(event_flow, event_flow_2, event_flow_3):
-    """Возвращает список всех тестовых событий."""
-    return [event_flow, event_flow_2, event_flow_3]
-
-
-@pytest.fixture
 def events_5():
     """Возвращает 5 простых событий для тестирования критериев."""
     return [Event(id=i, name=f"E{i}", group_id=1, teacher_id=1, total_hours=1, required_features=[]) for i in range(1, 6)]
@@ -169,6 +151,24 @@ def event_zero_hours():
     """Возвращает тестовое событие с нулевым количеством часов."""
     return Event(id=3, name="Факультатив", group_id=1, teacher_id=1,
                  total_hours=0, required_features=[])
+
+
+@pytest.fixture
+def events_list(event, event_2, event_3):
+    """Возвращает список всех тестовых событий."""
+    return [event, event_2, event_3]
+
+
+@pytest.fixture
+def events_list(event, event_2, event_3):
+    """Возвращает список всех тестовых событий."""
+    return [event, event_2, event_3]
+
+
+@pytest.fixture
+def events_flow_list(event_flow, event_flow_2, event_flow_3):
+    """Возвращает список всех тестовых событий."""
+    return [event_flow, event_flow_2, event_flow_3]
 
 
 # ==================== Фикстуры аудиторий ====================

@@ -79,22 +79,12 @@ class Teacher:
 
 
 class Event:
-    """Учебное событие (занятие)."""
-
     def __init__(self, id: int, name: str, group_id: int,
                  teacher_id: Optional[int] = None,
                  total_hours: int = 1,
                  required_features: Optional[List[str]] = None,
-                 time: Optional[int] = None):
-        """
-        :param id: уникальный идентификатор
-        :param name: название занятия
-        :param group_id: идентификатор группы
-        :param teacher_id: идентификатор преподавателя (опционально, заполняется позже)
-        :param total_hours: сколько раз провести (количество пар)
-        :param required_features: список требуемого оборудования
-        :param time: номер пары (опционально, заполняется из расписания)
-        """
+                 time: Optional[int] = None,
+                 date: Optional[str] = None):
         self.id = id
         self.name = name
         self.group_id = group_id
@@ -102,11 +92,12 @@ class Event:
         self.total_hours = total_hours
         self.required_features = required_features or []
         self.time = time
+        self.date = date
 
     def __repr__(self) -> str:
         return (f"Event(id={self.id}, name='{self.name}', group_id={self.group_id}, "
                 f"teacher_id={self.teacher_id}, total_hours={self.total_hours}, "
-                f"required_features={self.required_features}, time={self.time})")
+                f"required_features={self.required_features}, time={self.time}, date={self.date})")
 
 
 class TimeSlot:

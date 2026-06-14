@@ -112,6 +112,7 @@ class TestEvent:
         assert event.teacher_id == 1
         assert event.total_hours == 4
         assert event.required_features == ["доска"]
+        assert event.date is None  # по умолчанию date не задан
 
     def test_event_empty_required_features(self, event_empty_features):
         """Проверяет создание события без требований к оборудованию."""
@@ -131,11 +132,26 @@ class TestEvent:
         assert "teacher_id=1" in repr_str
         assert "total_hours=4" in repr_str
         assert "required_features=['доска']" in repr_str
+        assert "date=None" in repr_str  # проверяем, что date присутствует в repr
 
     def test_event_total_hours_type(self, event):
         """Проверяет, что total_hours — целое неотрицательное число."""
         assert isinstance(event.total_hours, int)
         assert event.total_hours >= 0
+
+    def test_event_with_date(self):
+        """Проверяет создание события с указанной датой."""
+        event_with_date = Event(
+            id=10,
+            name="Дата-событие",
+            group_id=1,
+            teacher_id=1,
+            total_hours=2,
+            required_features=["доска"],
+            date="2025-09-02"
+        )
+        assert event_with_date.date == "2025-09-02"
+        assert "date=2025-09-02" in repr(event_with_date)
 
 
 class TestTimeSlot:
