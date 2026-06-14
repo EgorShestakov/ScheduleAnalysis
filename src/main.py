@@ -35,8 +35,8 @@ def get_user_choice(prompt: str, options: List[str]) -> str:
 
 
 def export_students_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
-                              events: List, groups: List, rooms: List,
-                              work_days: List, time_slots: List, output_path: Path):
+                             events: List, groups: List, rooms: List,
+                             work_days: List, time_slots: List, output_path: Path):
     """
     Экспортирует расписание для студентов.
     all_assignments: {date_str: {event_id: (room_id, slot_id)}}
@@ -68,9 +68,12 @@ def export_students_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
     with open(output_file, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
 
-        for group_id, date_slots in schedule.items():
-            group = group_by_id.get(group_id)
-            group_name = f"{group.course}-{group.department}-{group.number}" if group else f"Группа {group_id}"
+        # Сортируем группы по id для стабильного порядка
+        for group in sorted(groups, key=lambda g: g.id):
+            group_name = f"{group.course}-{group.department}-{group.number}"
+
+            # Получаем расписание для этой группы
+            date_slots = schedule.get(group.id, {})
 
             writer.writerow([])
             writer.writerow([group_name])
@@ -91,8 +94,8 @@ def export_students_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
 
 
 def export_teachers_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
-                              events: List, teachers: List, rooms: List,
-                              work_days: List, time_slots: List, output_path: Path):
+                             events: List, teachers: List, rooms: List,
+                             work_days: List, time_slots: List, output_path: Path):
     """
     Экспортирует расписание для преподавателей.
     all_assignments: {date_str: {event_id: (room_id, slot_id)}}
@@ -123,9 +126,12 @@ def export_teachers_schedule(all_assignments: Dict[str, Dict[int, Tuple]],
     with open(output_file, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
 
-        for teacher_id, date_slots in schedule.items():
-            teacher = teacher_by_id.get(teacher_id)
-            teacher_name = teacher.full_name() if teacher else f"Преподаватель {teacher_id}"
+        # Сортируем преподавателей по id для стабильного порядка
+        for teacher in sorted(teachers, key=lambda t: t.id):
+            teacher_name = teacher.full_name()
+
+            # Получаем расписание для этого преподавателя
+            date_slots = schedule.get(teacher.id, {})
 
             writer.writerow([])
             writer.writerow([teacher_name])
